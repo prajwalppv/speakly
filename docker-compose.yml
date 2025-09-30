@@ -1,0 +1,46 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./backend:/app/backend
+    environment:
+      SPEAKLY_ENVIRONMENT: dev
+      SPEAKLY_DATABASE_URL: sqlite:////app/backend/data/app.db
+      SPEAKLY_AUDIO_DIR: /app/backend/storage/audio
+      SPEAKLY_LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+
+  backend-tests:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["pytest", "-q"]
+    environment:
+      SPEAKLY_ENVIRONMENT: test
+      SPEAKLY_DATABASE_URL: sqlite:////tmp/test.db
+      SPEAKLY_AUDIO_DIR: /tmp/audio
+    volumes:
+      - ./backend:/app/backend
+    profiles: ["test"]
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      VITE_API_BASE_URL: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port 5173"]
+
+volumes:
+  frontend_node_modules:
