@@ -32,7 +32,8 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
     environment:
-      VITE_API_BASE_URL: http://backend:8000
+      VITE_BACKEND_URL_INTERNAL: http://backend:8000
+      VITE_API_BASE_URL: proxy
     depends_on:
       - backend
     ports:

@@ -46,5 +46,6 @@ PLAN.md              # Phase roadmap
 ## Notes
 
 - Configuration values (database path, storage directory, log level) can be overridden with environment variables prefixed by `SPEAKLY_` for the backend and `VITE_` for the frontend.
+- The frontend issues API calls via a relative `/api` path by default. `VITE_BACKEND_URL_INTERNAL` controls where the Vite dev server proxies those requests (defaults to `http://localhost:8000`), while setting `VITE_API_BASE_URL` to a concrete URL skips the proxy and targets that address directly.
 - JSON logs are written to `backend/logs/speakly.log`. When running via Docker they are also emitted to stdout for easy inspection.
 - The stack uses SQLite for simplicity in Phase 1; the database file lives at `backend/data/app.db` by default.

@@ -1,9 +1,12 @@
 import axios from "axios";
 
-const DEFAULT_BASE_URL = "http://localhost:8000";
+const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim();
 
+// When RAW_BASE_URL is omitted or set to the sentinel value "proxy", fall back
+// to a relative request so the Vite dev server proxy (or same-origin hosting)
+// forwards calls to the backend.
 const client = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? DEFAULT_BASE_URL
+  baseURL: RAW_BASE_URL && RAW_BASE_URL !== "proxy" ? RAW_BASE_URL : ""
 });
 
 export interface UploadResponse {
