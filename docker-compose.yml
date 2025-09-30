@@ -15,6 +15,14 @@ services:
       ELEVENLABS_BASE_URL: ${ELEVENLABS_BASE_URL:-https://api.elevenlabs.io}
       ELEVENLABS_WEBHOOK_SECRET: ${ELEVENLABS_WEBHOOK_SECRET:-}
       ELEVENLABS_WEBHOOK_ID: ${ELEVENLABS_WEBHOOK_ID:-}
+      ELEVENLABS_DIARIZATION_ENABLED: ${ELEVENLABS_DIARIZATION_ENABLED:-true}
+      ELEVENLABS_DIARIZATION_THRESHOLD: ${ELEVENLABS_DIARIZATION_THRESHOLD:-0.22}
+      PJ_PROFILE_NAME: ${PJ_PROFILE_NAME:-PJ}
+      PJ_VOICE_TAGS: ${PJ_VOICE_TAGS:-pj,patrick}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL_SUMMARY: ${OLLAMA_MODEL_SUMMARY:-llama3}
+      OLLAMA_MODEL_TODO: ${OLLAMA_MODEL_TODO:-llama3}
+      TODO_CONFIDENCE_THRESHOLD: ${TODO_CONFIDENCE_THRESHOLD:-0.35}
     ports:
       - "8000:8000"
 
@@ -47,5 +55,30 @@ services:
       - frontend_node_modules:/app/node_modules
     command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port 5173"]
 
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    profiles: ["llm"]
+
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "5678:5678"
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
+    depends_on:
+      - backend
+    profiles: ["n8n"]
+
 volumes:
   frontend_node_modules:
+  ollama_data:

@@ -23,6 +23,7 @@ def init_database() -> None:
 
     Base.metadata.create_all(bind=engine)
     _ensure_session_columns()
+    _ensure_transcription_columns()
 
 
 def _ensure_session_columns() -> None:
@@ -40,6 +41,32 @@ def _ensure_session_columns() -> None:
         statements.append("ALTER TABLE sessions ADD COLUMN last_error TEXT")
     if "last_transcribed_at" not in existing:
         statements.append("ALTER TABLE sessions ADD COLUMN last_transcribed_at DATETIME")
+    if "has_pj" not in existing:
+        statements.append("ALTER TABLE sessions ADD COLUMN has_pj BOOLEAN NOT NULL DEFAULT 0")
+    if "summary_run_id" not in existing:
+        statements.append("ALTER TABLE sessions ADD COLUMN summary_run_id INTEGER")
+    if "todo_count" not in existing:
+        statements.append("ALTER TABLE sessions ADD COLUMN todo_count INTEGER NOT NULL DEFAULT 0")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for stmt in statements:
+            connection.execute(text(stmt))
+
+
+def _ensure_transcription_columns() -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table("transcriptions"):
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("transcriptions")}
+    statements: list[str] = []
+    if "duration_ms" not in existing:
+        statements.append("ALTER TABLE transcriptions ADD COLUMN duration_ms INTEGER")
+    if "channel_count" not in existing:
+        statements.append("ALTER TABLE transcriptions ADD COLUMN channel_count INTEGER")
 
     if not statements:
         return

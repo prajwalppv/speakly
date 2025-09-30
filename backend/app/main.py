@@ -15,6 +15,7 @@ from .models import User
 from .routers import audio as audio_router
 from .routers import sessions as sessions_router
 from .routers import webhooks as webhooks_router
+from .services import ensure_pj_profile
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ def register_event_handlers(app: FastAPI) -> None:
         logger.info("Starting Speakly API", extra={"extra_data": {"env": settings.environment}})
         init_database()
         ensure_default_user()
+        ensure_default_speakers()
 
 
 async def log_request(request: Request, call_next: Callable):
@@ -79,12 +81,22 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(HTTPException)
     async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
         error = format_http_exception(exc)
+        if settings.developer_mode:
+            error.debug = {
+                "detail": exc.detail,
+                "headers": getattr(exc, "headers", None),
+            }
         return JSONResponse(status_code=exc.status_code, content=error.dict())
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
         logger.exception("Unhandled exception")
         error = format_unhandled_exception(exc)
+        if settings.developer_mode:
+            error.debug = {
+                "exception": exc.__class__.__name__,
+                "message": str(exc),
+            }
         return JSONResponse(status_code=500, content=error.dict())
 
 
@@ -98,6 +110,13 @@ def ensure_default_user() -> None:
             db.add(user)
             db.commit()
         logger.debug("Default user ready", extra={"extra_data": {"user_id": user.id}})
+
+
+def ensure_default_speakers() -> None:
+    from .database import SessionLocal
+
+    with SessionLocal() as db:
+        ensure_pj_profile(db)
 
 
 app = create_app()

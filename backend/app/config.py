@@ -34,10 +34,29 @@ class Settings(BaseSettings):
     elevenlabs_webhook_id: str | None = Field(
         default=None, env="ELEVENLABS_WEBHOOK_ID"
     )
+    elevenlabs_diarization_enabled: bool = Field(
+        default=True, env="ELEVENLABS_DIARIZATION_ENABLED"
+    )
+    elevenlabs_diarization_threshold: float | None = Field(
+        default=None, env="ELEVENLABS_DIARIZATION_THRESHOLD"
+    )
+    pj_profile_name: str = Field(default="PJ", env="PJ_PROFILE_NAME")
+    pj_voice_tags: str = Field(default="pj,patrick", env="PJ_VOICE_TAGS")
+    ollama_base_url: str | None = Field(default=None, env="OLLAMA_BASE_URL")
+    ollama_model_summary: str = Field(default="llama3", env="OLLAMA_MODEL_SUMMARY")
+    ollama_model_todo: str = Field(default="llama3", env="OLLAMA_MODEL_TODO")
+    todo_confidence_threshold: float = Field(
+        default=0.35, env="TODO_CONFIDENCE_THRESHOLD"
+    )
+    developer_mode: bool = Field(default=False, env="SPEAKLY_DEVELOPER_MODE")
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+
+    @property
+    def pj_voice_tag_set(self) -> set[str]:
+        return {tag.strip().lower() for tag in self.pj_voice_tags.split(",") if tag.strip()}
 
 
 settings = Settings()

@@ -70,6 +70,7 @@ def test_upload_audio_creates_pending_transcription(tmp_path: Path) -> None:
         session_data = session_response.json()
         assert session_data["status"] == "pending"
         assert session_data["transcriptions"][0]["status"] == "pending"
+        assert session_data["speaker_segments"] == []
     finally:
         cleanup()
 
@@ -122,5 +123,6 @@ def test_webhook_marks_transcription_complete(tmp_path: Path) -> None:
         transcription = session_data["transcriptions"][0]
         assert transcription["status"] == "completed"
         assert transcription["text"] == "hello world"
+        assert isinstance(session_data["speaker_segments"], list)
     finally:
         cleanup()

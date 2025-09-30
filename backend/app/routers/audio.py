@@ -84,6 +84,8 @@ async def upload_audio(
         "transcription_id": transcription.id,
     }
 
+    developer_message: str | None = None
+
     try:
         submission = elevenlabs_client.submit_transcription(
             audio_path=stored_path,
@@ -93,6 +95,7 @@ async def upload_audio(
     except ElevenLabsNotConfiguredError:
         logger.info("ElevenLabs client is not configured; transcription remains pending.")
         transcription.metadata_payload = submission_metadata
+        developer_message = "ElevenLabs API key is not configured; transcription pending locally."
     except ElevenLabsError as exc:
         logger.exception("Failed to submit audio for transcription")
         session_record.status = "error"
@@ -100,6 +103,7 @@ async def upload_audio(
         transcription.status = "error"
         transcription.error = str(exc)
         transcription.metadata_payload = submission_metadata
+        developer_message = str(exc)
     else:  # pragma: no branch - executed when integration succeeds
         logger.info(
             "ElevenLabs submission accepted",
@@ -121,6 +125,8 @@ async def upload_audio(
         transcription.metadata_payload = submission
         transcription.status = "submitted"
         session_record.status = "awaiting_transcription"
+        if settings.developer_mode:
+            developer_message = f"Submission request_id={submission.get('request_id')}"
 
     db.add(session_record)
     db.add(transcription)
@@ -139,4 +145,5 @@ async def upload_audio(
         session_status=session_status,
         transcription_id=transcription.id,
         transcription_status=transcription_status,
+        developer_message=developer_message if settings.developer_mode else None,
     )

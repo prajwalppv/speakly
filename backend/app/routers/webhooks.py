@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import logging
@@ -13,6 +14,7 @@ from ..database import get_session
 from ..models import Session as SessionModel
 from ..models import Transcription as TranscriptionModel
 from ..schemas import ElevenLabsWebhookPayload
+from ..services import persist_speaker_segments, schedule_summary_and_todos
 
 router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
 logger = logging.getLogger(__name__)
@@ -49,8 +51,10 @@ async def elevenlabs_webhook(
             .one_or_none()
         )
 
-    if transcription is None and payload.metadata:
-        transcription_id = payload.metadata.get("transcription_id")
+    metadata_payload = payload.metadata or {}
+
+    if transcription is None and metadata_payload:
+        transcription_id = metadata_payload.get("transcription_id")
         if transcription_id is not None:
             transcription = (
                 db.query(TranscriptionModel)
@@ -70,11 +74,38 @@ async def elevenlabs_webhook(
         )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found")
 
-    session = db.query(SessionModel).filter_by(id=transcription.session_id).one()
+    session = (
+        db.query(SessionModel)
+        .filter_by(id=transcription.session_id)
+        .one()
+    )
 
     normalized_status = payload.status.lower()
 
-    incoming_metadata = payload.metadata or {}
+    transcription_data = payload.data.transcription
+    if transcription_data and transcription_data.transcription_id:
+        transcription.provider_job_id = (
+            transcription.provider_job_id or transcription_data.transcription_id
+        )
+
+    if transcription_data and transcription_data.words and settings.elevenlabs_diarization_enabled:
+        try:
+            persist_speaker_segments(
+                db,
+                session,
+                transcription,
+                transcription_data.words,
+            )
+        except Exception:  # pragma: no cover - diagnostic protection
+            logger.exception("Failed to persist speaker segments")
+
+        if transcription_data.words:
+            last_end = max(
+                (word.get("end") or 0.0) for word in transcription_data.words
+            )
+            transcription.duration_ms = int(last_end * 1000)
+
+    incoming_metadata = payload.metadata or transcription_data.model_dump(exclude_none=True) if transcription_data else {}
     if incoming_metadata:
         existing_metadata = transcription.metadata_payload or {}
         merged_metadata = {**existing_metadata, **incoming_metadata}
@@ -110,5 +141,10 @@ async def elevenlabs_webhook(
             }
         },
     )
+
+    if transcription.status == "completed":
+        asyncio.create_task(
+            schedule_summary_and_todos(session.id, transcription.id)
+        )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

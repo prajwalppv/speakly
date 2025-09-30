@@ -51,6 +51,12 @@ class ElevenLabsClient:
             "model_id": "scribe_v1",
             "language": "en",
         }
+        if settings.elevenlabs_diarization_enabled:
+            payload["diarize"] = "true"
+            if settings.elevenlabs_diarization_threshold is not None:
+                payload["diarization_threshold"] = str(
+                    settings.elevenlabs_diarization_threshold
+                )
         if settings.elevenlabs_webhook_id:
             payload["webhook_id"] = settings.elevenlabs_webhook_id
         if metadata:

@@ -1,66 +1,100 @@
-# Speakly Phase 2
+# Speakly Phase 3
 
-Phase 2 extends the initial "hello pipeline" with ElevenLabs Scribe transcription hooks, session history, and a richer UI loop. The backend is a FastAPI application with SQLite storage and JSON logging, and the frontend is a React + Vite interface for uploading sample audio and tracking transcription progress. Both services are containerised so the entire stack can be run and tested with Docker Compose.
+Phase 3 turns Speakly into a speaker-aware, action-oriented assistant. The backend is a FastAPI service backed by SQLite, ElevenLabs for transcription + diarization, and optional Ollama + n8n sidecars. The frontend (React + Vite) now visualises speakers, summaries, and TODOs.
+
+## Highlights
+
+- ElevenLabs webhook pipeline with diarization + PJ voice tagging and advanced metadata
+- LLM-powered summaries and actionable TODO extraction (via Ollama, with graceful fallbacks)
+- Rich filtering (`/api/sessions?speaker=PJ&has_pj=true&q=sync`) and session details including speaker timelines
+- Frontend dashboard to upload audio, browse sessions, review summaries, and manage todos
+- Optional n8n automation profile ready to sync todos with external task managers
 
 ## Prerequisites
 
-- Docker Desktop or Docker Engine 24+
-- Docker Compose v2 (usually bundled with Docker Desktop)
+- Docker Desktop / Engine 24+
+- Docker Compose v2
+- ElevenLabs account + Speech-to-Text webhook configured (point to `https://<your-ngrok>/api/webhooks/elevenlabs`)
+- (Optional) Ollama for local LLM generation
 
-## Usage
+## Environment
 
-### Boot the stack
+Edit `.env` to supply credentials and toggles:
+
+```
+SPEAKLY_ENVIRONMENT=prod
+SPEAKLY_LOG_LEVEL=INFO
+ELEVENLABS_API_KEY=...
+ELEVENLABS_WEBHOOK_SECRET=...
+ELEVENLABS_WEBHOOK_ID=             # optional explicit webhook id
+ELEVENLABS_DIARIZATION_ENABLED=true
+PJ_PROFILE_NAME=PJ
+PJ_VOICE_TAGS=pj,patrick
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL_SUMMARY=llama3
+OLLAMA_MODEL_TODO=llama3
+TODO_CONFIDENCE_THRESHOLD=0.35
+SPEAKLY_DEVELOPER_MODE=false
+```
+
+## Running the stack
+
+### Core services (backend + frontend)
 
 ```bash
 docker compose up --build backend frontend
 ```
 
-- Backend API: `http://localhost:8000` (`POST /api/audio`)
-- Frontend UI: `http://localhost:5173`
+- Backend: `http://localhost:8000`
+  - `POST /api/audio` – upload audio (multipart)
+  - `POST /api/webhooks/elevenlabs` – ElevenLabs callback
+  - `GET /api/sessions` – list with filters (`has_pj`, `speaker`, `q`, `from`, `to`)
+  - `GET /api/sessions/{id}` – full session details (speaker segments, summary, todos)
+- Frontend: `http://localhost:5173`
+  - Upload samples
+  - Browse session list with filters
+  - Review summaries, TODOs, and diarization timeline
 
-- The frontend issues uploads to the backend and shows the JSON response. Uploaded files are stored under `backend/storage/audio` on the host for inspection.
-- Query session history with `GET /api/sessions` or a specific record with `GET /api/sessions/{id}`.
-- Webhook callback endpoint: `POST /api/webhooks/elevenlabs`.
+### Enable Ollama (LLM summaries + todos)
 
-### Configure ElevenLabs (optional)
+```bash
+docker compose up --build backend frontend --profile llm
+```
 
-Set the following environment variables before starting the stack to forward uploads to ElevenLabs Scribe STT:
+The backend targets `OLLAMA_BASE_URL` (defaults to `http://ollama:11434`). Make sure the required models are pulled inside the container, for example:
 
-| Variable | Purpose |
-|----------|---------|
-| `ELEVENLABS_API_KEY` | ElevenLabs API key used for authenticated requests |
-| `ELEVENLABS_BASE_URL` | Override the ElevenLabs API base URL (defaults to `https://api.elevenlabs.io`) |
-| `ELEVENLABS_WEBHOOK_SECRET` | Shared secret used to validate webhook signatures |
+```bash
+docker compose exec ollama ollama pull llama3
+```
 
-The backend passes `metadata` with `session_id` and `transcription_id` so webhook handlers can locate the correct record. For local development you can simulate a completed transcription by POSTing to the webhook endpoint with the expected payload and optional signature (HMAC SHA-256 of the raw body).
+If Ollama is unavailable the backend falls back to lightweight heuristics and marks LLM runs as `error`.
 
-### Run backend tests
+### Optional n8n automation
+
+```bash
+docker compose up --build backend frontend --profile n8n
+```
+
+n8n UI: `http://localhost:5678` (basic auth defaults to `admin/changeme`). Use Speakly APIs to poll for new todos and dispatch them to external task tools.
+
+## Testing
+
+Backend tests (pytest) run inside the Docker image:
 
 ```bash
 docker compose run --rm --profile test backend-tests
 ```
 
-This runs the FastAPI test suite (pytest) inside the backend container image.
-
-## Project Structure
-
-```
-backend/
-  app/               # FastAPI application package
-  tests/             # pytest suite
-  requirements*.txt  # Python dependencies
-  Dockerfile         # Backend image definition
-frontend/
-  src/               # React application source
-  Dockerfile         # Frontend image definition
-docker-compose.yml   # Orchestrates the services
-PLAN.md              # Phase roadmap
-```
-
 ## Notes
 
-- Configuration values (database path, storage directory, log level) can be overridden with environment variables prefixed by `SPEAKLY_` for the backend and `VITE_` for the frontend.
-- The frontend issues API calls via a relative `/api` path by default. `VITE_BACKEND_URL_INTERNAL` controls where the Vite dev server proxies those requests (defaults to `http://localhost:8000`), while setting `VITE_API_BASE_URL` to a concrete URL skips the proxy and targets that address directly.
-- ElevenLabs integration is optional; without an API key the backend records a pending transcription and the UI will show the submission as "pending" until a webhook completes it.
-- JSON logs are written to `backend/logs/speakly.log`. When running via Docker they are also emitted to stdout for easy inspection.
-- The stack uses SQLite for simplicity; the database file lives at `backend/data/app.db` by default.
+- ElevenLabs metadata is persisted with each transcription. Diarization is toggled via `ELEVENLABS_DIARIZATION_ENABLED`.
+- Default PJ speaker profile is auto-created; adjust `PJ_PROFILE_NAME`/`PJ_VOICE_TAGS` to match your tags or provide custom logic in `speaker_profiles` table.
+- Speaker segments, summaries, and TODOs are all exposed via the session APIs for easy integration with external services.
+- Set `SPEAKLY_DEVELOPER_MODE=true` to bubble backend errors and debug messages directly into API responses and the UI during development.
+- Logs live at `backend/logs/speakly.log` (JSON). Update `SPEAKLY_LOG_LEVEL` for more detail.
+
+## Phase 3 follow-up ideas
+
+- Wire TODO webhook to TickTick or other task managers via n8n
+- Add real voice embedding comparison for PJ identification
+- Streaming LLM responses & user-triggered Q&A endpoints
