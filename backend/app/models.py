@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -34,8 +34,32 @@ class Session(Base, TimestampMixin):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     description = Column(String, nullable=True)
     audio_path = Column(String, nullable=True)
+    status = Column(String, nullable=False, default="pending")
+    last_error = Column(Text, nullable=True)
+    last_transcribed_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="sessions")
+    transcriptions = relationship(
+        "Transcription",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="Transcription.created_at",
+    )
 
 
-__all__ = ["User", "Session"]
+class Transcription(Base, TimestampMixin):
+    __tablename__ = "transcriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("sessions.id"), nullable=False, index=True)
+    provider = Column(String, nullable=False, default="elevenlabs")
+    provider_job_id = Column(String, nullable=True, unique=True)
+    status = Column(String, nullable=False, default="pending")
+    text = Column(Text, nullable=True)
+    error = Column(Text, nullable=True)
+    metadata_payload = Column(JSON, nullable=True)
+
+    session = relationship("Session", back_populates="transcriptions")
+
+
+__all__ = ["User", "Session", "Transcription"]

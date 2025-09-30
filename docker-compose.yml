@@ -11,6 +11,10 @@ services:
       SPEAKLY_DATABASE_URL: sqlite:////app/backend/data/app.db
       SPEAKLY_AUDIO_DIR: /app/backend/storage/audio
       SPEAKLY_LOG_LEVEL: INFO
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_BASE_URL: ${ELEVENLABS_BASE_URL:-https://api.elevenlabs.io}
+      ELEVENLABS_WEBHOOK_SECRET: ${ELEVENLABS_WEBHOOK_SECRET:-}
+      ELEVENLABS_WEBHOOK_ID: ${ELEVENLABS_WEBHOOK_ID:-}
     ports:
       - "8000:8000"
 

@@ -15,6 +15,32 @@ export interface UploadResponse {
   file_path: string;
   session_id?: number | null;
   received_at: string;
+  session_status: string;
+  transcription_id?: number | null;
+  transcription_status?: string | null;
+}
+
+export interface TranscriptionRecord {
+  id: number;
+  status: string;
+  text: string | null;
+  provider: string;
+  provider_job_id: string | null;
+  error: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionRecord {
+  id: number;
+  status: string;
+  audio_path: string | null;
+  last_error: string | null;
+  last_transcribed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  transcriptions: TranscriptionRecord[];
 }
 
 export async function uploadAudio(file: File): Promise<UploadResponse> {
@@ -25,5 +51,10 @@ export async function uploadAudio(file: File): Promise<UploadResponse> {
     headers: { "Content-Type": "multipart/form-data" }
   });
 
+  return response.data;
+}
+
+export async function fetchSession(sessionId: number): Promise<SessionRecord> {
+  const response = await client.get<SessionRecord>(`/api/sessions/${sessionId}`);
   return response.data;
 }

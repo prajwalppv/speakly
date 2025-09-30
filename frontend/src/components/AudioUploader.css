@@ -4,3 +4,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.transcript-output {
+  margin-top: 0.25rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  font-family: "Fira Code", "Source Code Pro", monospace;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.transcript-output--error {
+  border: 1px solid rgba(255, 99, 132, 0.6);
+  color: #ff9ca8;
+}

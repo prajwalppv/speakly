@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .config import settings
@@ -22,6 +22,31 @@ def init_database() -> None:
     from . import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_session_columns()
+
+
+def _ensure_session_columns() -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table("sessions"):
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("sessions")}
+    statements: list[str] = []
+    if "status" not in existing:
+        statements.append(
+            "ALTER TABLE sessions ADD COLUMN status VARCHAR NOT NULL DEFAULT 'pending'"
+        )
+    if "last_error" not in existing:
+        statements.append("ALTER TABLE sessions ADD COLUMN last_error TEXT")
+    if "last_transcribed_at" not in existing:
+        statements.append("ALTER TABLE sessions ADD COLUMN last_transcribed_at DATETIME")
+
+    if not statements:
+        return
+
+    with engine.begin() as connection:
+        for stmt in statements:
+            connection.execute(text(stmt))
 
 
 def get_session() -> Generator:

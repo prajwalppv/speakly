@@ -25,7 +25,10 @@ class JsonFormatter(logging.Formatter):
             log_record["args"] = record.args
         if hasattr(record, "extra_data"):
             log_record.update(getattr(record, "extra_data"))
-        return json.dumps(log_record)
+        def _default(obj):  # pragma: no cover - defensive serialization
+            return str(obj)
+
+        return json.dumps(log_record, default=_default)
 
 
 def configure_logging() -> None:

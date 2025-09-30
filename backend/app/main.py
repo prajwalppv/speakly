@@ -13,6 +13,8 @@ from .errors import format_http_exception, format_unhandled_exception
 from .logging_config import configure_logging
 from .models import User
 from .routers import audio as audio_router
+from .routers import sessions as sessions_router
+from .routers import webhooks as webhooks_router
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,8 @@ def create_app() -> FastAPI:
 
 def register_routes(app: FastAPI) -> None:
     app.include_router(audio_router.router)
+    app.include_router(sessions_router.router)
+    app.include_router(webhooks_router.router)
 
 
 def register_event_handlers(app: FastAPI) -> None:

@@ -1,0 +1,114 @@
+from __future__ import annotations
+
+import hashlib
+import hmac
+import logging
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from sqlalchemy.orm import Session
+
+from ..config import settings
+from ..database import get_session
+from ..models import Session as SessionModel
+from ..models import Transcription as TranscriptionModel
+from ..schemas import ElevenLabsWebhookPayload
+
+router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
+logger = logging.getLogger(__name__)
+
+
+def verify_signature(provided: str | None, payload: bytes) -> bool:
+    secret = settings.elevenlabs_webhook_secret
+    if not secret or not provided:
+        return True
+    expected = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+    _, _, signature_value = provided.partition("=")
+    candidate = signature_value or provided
+    return hmac.compare_digest(expected, candidate)
+
+
+@router.post("/elevenlabs", name="elevenlabs_webhook", status_code=status.HTTP_204_NO_CONTENT)
+async def elevenlabs_webhook(
+    request: Request,
+    payload: ElevenLabsWebhookPayload,
+    signature: str | None = Header(default=None, alias="X-ELEVENLABS-SIGNATURE"),
+    db: Session = Depends(get_session),
+) -> Response:
+    raw_body = await request.body()
+    if not verify_signature(signature, raw_body):
+        logger.warning("Invalid ElevenLabs webhook signature")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
+
+    provider_reference = payload.provider_reference
+    transcription = None
+    if provider_reference:
+        transcription = (
+            db.query(TranscriptionModel)
+            .filter_by(provider_job_id=str(provider_reference))
+            .one_or_none()
+        )
+
+    if transcription is None and payload.metadata:
+        transcription_id = payload.metadata.get("transcription_id")
+        if transcription_id is not None:
+            transcription = (
+                db.query(TranscriptionModel)
+                .filter_by(id=int(transcription_id))
+                .one_or_none()
+            )
+
+    if transcription is None:
+        logger.error(
+            "Webhook received for unknown transcription",
+            extra={
+                "extra_data": {
+                    "provider_reference": provider_reference,
+                    "metadata": payload.metadata,
+                }
+            },
+        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found")
+
+    session = db.query(SessionModel).filter_by(id=transcription.session_id).one()
+
+    normalized_status = payload.status.lower()
+
+    incoming_metadata = payload.metadata or {}
+    if incoming_metadata:
+        existing_metadata = transcription.metadata_payload or {}
+        merged_metadata = {**existing_metadata, **incoming_metadata}
+        transcription.metadata_payload = merged_metadata
+
+    if normalized_status in {"completed", "success", "finished"}:
+        transcription.status = "completed"
+        transcription.text = payload.text
+        transcription.error = None
+        session.status = "completed"
+        session.last_error = None
+        session.last_transcribed_at = datetime.utcnow()
+    elif normalized_status in {"failed", "error"}:
+        transcription.status = "error"
+        transcription.error = payload.text or "Transcription failed"
+        session.status = "error"
+        session.last_error = transcription.error
+    else:
+        transcription.status = normalized_status
+        transcription.text = payload.text
+
+    db.add(transcription)
+    db.add(session)
+    db.commit()
+
+    logger.info(
+        "Processed ElevenLabs webhook",
+        extra={
+            "extra_data": {
+                "transcription_id": transcription.id,
+                "session_id": session.id,
+                "status": transcription.status,
+            }
+        },
+    )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

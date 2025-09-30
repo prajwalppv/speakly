@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     )
     audio_storage_dir: Path = Field(default=AUDIO_STORAGE_DIR, env="SPEAKLY_AUDIO_DIR")
     log_level: str = Field(default="INFO", env="SPEAKLY_LOG_LEVEL")
+    elevenlabs_api_key: str | None = Field(default=None, env="ELEVENLABS_API_KEY")
+    elevenlabs_base_url: str = Field(
+        default="https://api.elevenlabs.io", env="ELEVENLABS_BASE_URL"
+    )
+    elevenlabs_webhook_secret: str | None = Field(
+        default=None, env="ELEVENLABS_WEBHOOK_SECRET"
+    )
+    elevenlabs_webhook_id: str | None = Field(
+        default=None, env="ELEVENLABS_WEBHOOK_ID"
+    )
 
     class Config:
         env_file = ".env"
@@ -40,4 +50,5 @@ __all__ = [
     "DATA_DIR",
     "LOG_DIR",
     "AUDIO_STORAGE_DIR",
+    "DEFAULT_DB_PATH",
 ]

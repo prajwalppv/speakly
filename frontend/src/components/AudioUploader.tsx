@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { UploadResponse, uploadAudio } from "../api";
+import { SessionRecord, UploadResponse, fetchSession, uploadAudio } from "../api";
 import "./AudioUploader.css";
 
 type UploadState = "idle" | "uploading" | "success" | "error";
@@ -12,16 +12,31 @@ export default function AudioUploader() {
   const [state, setState] = useState<UploadState>("idle");
   const [response, setResponse] = useState<UploadResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<SessionRecord | null>(null);
 
   const isUploading = state === "uploading";
 
   const helperMessage = useMemo(() => {
-    if (state === "success" && response) {
-      return `Audio received. Session #${response.session_id ?? "n/a"}.`;
-    }
-
     if (state === "error" && error) {
       return error;
+    }
+
+    if (session) {
+      const transcription = session.transcriptions[0];
+      if (transcription) {
+        if (transcription.status === "completed" && transcription.text) {
+          return "Transcription completed.";
+        }
+        if (transcription.status === "error") {
+          return transcription.error ?? "Transcription failed.";
+        }
+        return `Transcription status: ${transcription.status}`;
+      }
+      return `Session status: ${session.status}`;
+    }
+
+    if (state === "success" && response) {
+      return `Upload received. Session #${response.session_id ?? "n/a"}.`;
     }
 
     if (file) {
@@ -29,7 +44,7 @@ export default function AudioUploader() {
     }
 
     return DEFAULT_MESSAGE;
-  }, [state, response, error, file]);
+  }, [state, file, error, session]);
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0] ?? null;
@@ -37,6 +52,7 @@ export default function AudioUploader() {
     setResponse(null);
     setError(null);
     setState("idle");
+    setSession(null);
   }, []);
 
   const handleSubmit = useCallback(
@@ -56,6 +72,7 @@ export default function AudioUploader() {
         const data = await uploadAudio(file);
         setResponse(data);
         setState("success");
+        setSession(null);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Unable to upload audio right now.";
@@ -65,6 +82,49 @@ export default function AudioUploader() {
     },
     [file]
   );
+
+  useEffect(() => {
+    if (!response?.session_id) {
+      return;
+    }
+
+    let cancelled = false;
+    let intervalId: number | null = null;
+
+    const isTerminal = (status: string | undefined | null) =>
+      !!status && ["completed", "error", "failed"].includes(status.toLowerCase());
+
+    const poll = async () => {
+      try {
+        const data = await fetchSession(response.session_id!);
+        if (cancelled) return;
+        setSession(data);
+
+        const transcriptionStatus = data.transcriptions[0]?.status;
+        if (isTerminal(transcriptionStatus) || isTerminal(data.status)) {
+          if (intervalId !== null) {
+            window.clearInterval(intervalId);
+            intervalId = null;
+          }
+        }
+      } catch (err) {
+        if (cancelled) return;
+        const message =
+          err instanceof Error ? err.message : "Unable to retrieve session status.";
+        setError(message);
+      }
+    };
+
+    poll();
+    intervalId = window.setInterval(poll, 2500);
+
+    return () => {
+      cancelled = true;
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [response?.session_id]);
 
   return (
     <section className="card">
@@ -101,6 +161,42 @@ export default function AudioUploader() {
             <dt>Received at</dt>
             <dd>{new Date(response.received_at).toLocaleString()}</dd>
           </div>
+        </dl>
+      )}
+      {session && (
+        <dl className="card__meta">
+          <div>
+            <dt>Session status</dt>
+            <dd>{session.status}</dd>
+          </div>
+          {session.last_transcribed_at && (
+            <div>
+              <dt>Last transcribed</dt>
+              <dd>{new Date(session.last_transcribed_at).toLocaleString()}</dd>
+            </div>
+          )}
+          {session.transcriptions.length > 0 && (
+            <>
+              <div>
+                <dt>Transcription status</dt>
+                <dd>{session.transcriptions[0].status}</dd>
+              </div>
+              {session.transcriptions[0].text && (
+                <div>
+                  <dt>Transcript</dt>
+                  <dd className="transcript-output">{session.transcriptions[0].text}</dd>
+                </div>
+              )}
+              {session.transcriptions[0].error && (
+                <div>
+                  <dt>Error</dt>
+                  <dd className="transcript-output transcript-output--error">
+                    {session.transcriptions[0].error}
+                  </dd>
+                </div>
+              )}
+            </>
+          )}
         </dl>
       )}
     </section>
