@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { UploadResponse, uploadAudio } from "../api";
+import "./AudioUploader.css";
 
 type UploadState = "idle" | "uploading" | "success" | "error";
 
@@ -23,8 +24,12 @@ export default function AudioUploader() {
       return error;
     }
 
+    if (file) {
+      return `Ready to upload ${file.name}`;
+    }
+
     return DEFAULT_MESSAGE;
-  }, [state, response, error]);
+  }, [state, response, error, file]);
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0] ?? null;
@@ -69,7 +74,7 @@ export default function AudioUploader() {
       </header>
       <form onSubmit={handleSubmit} className="card__body" aria-live="polite">
         <label className="file-input">
-          <span>Choose audio</span>
+          <span className="file-input__label">{file ? file.name : "Choose audio"}</span>
           <input
             type="file"
             name="audio"
