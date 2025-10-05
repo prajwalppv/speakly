@@ -13,8 +13,41 @@ on:
   workflow_dispatch:
 
 jobs:
+  ensure-postgres:
+    name: Ensure Postgres app is running
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_POSTGRES_APP: ${{ vars.FLY_POSTGRES_APP }}
+    steps:
+      - name: Check Postgres app name
+        run: |
+          if [ -z "$FLY_POSTGRES_APP" ]; then
+            echo "FLY_POSTGRES_APP variable is not set. Configure it in repo variables." >&2
+            exit 1
+          fi
+
+      - name: Verify Postgres app status
+        uses: superfly/flyctl-actions/setup-flyctl@v1
+
+      - name: Start Postgres machine if needed
+        run: |
+          status=$(flyctl status --app "$FLY_POSTGRES_APP" --json)
+          echo "$status" | jq '.'
+          running=$(echo "$status" | jq -r '[.Machines[]?.State == "started"] | all')
+          if [ "$running" != "true" ]; then
+            echo "Postgres not running, starting machines..."
+            flyctl machines list --app "$FLY_POSTGRES_APP"
+            flyctl machines start --app "$FLY_POSTGRES_APP" --all
+            echo "Waiting for machines to become healthy..."
+            flyctl status --app "$FLY_POSTGRES_APP"
+          else
+            echo "Postgres machines already running."
+          fi
+
   deploy-backend:
     name: Deploy backend
+    needs: ensure-postgres
     runs-on: ubuntu-latest
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
