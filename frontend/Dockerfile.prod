@@ -7,11 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Work around npm optional dependency bug on musl by downgrading npm
-RUN npm install -g npm@9
-
-# Install dependencies with cached npm downloads to speed up rebuilds
-RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline --no-audit --no-fund --verbose
+# Install dependencies
+RUN npm ci
 
 # Copy source code
 COPY . .
