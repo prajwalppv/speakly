@@ -8,7 +8,7 @@ services:
       - ./backend:/app/backend
     environment:
       SPEAKLY_ENVIRONMENT: dev
-      SPEAKLY_DATABASE_URL: sqlite:////app/backend/data/app.db
+      SPEAKLY_DATABASE_URL: ${SPEAKLY_DATABASE_URL:-postgresql+psycopg2://speakly:speakly@db:5432/speakly}
       SPEAKLY_AUDIO_DIR: /app/backend/storage/audio
       SPEAKLY_LOG_LEVEL: INFO
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
@@ -19,18 +19,25 @@ services:
       ELEVENLABS_DIARIZATION_THRESHOLD: ${ELEVENLABS_DIARIZATION_THRESHOLD:-0.22}
       PJ_PROFILE_NAME: ${PJ_PROFILE_NAME:-PJ}
       PJ_VOICE_TAGS: ${PJ_VOICE_TAGS:-pj,patrick}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-deepseek-r1-distill-llama-70b}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL_SUMMARY: ${OLLAMA_MODEL_SUMMARY:-llama3}
       OLLAMA_MODEL_TODO: ${OLLAMA_MODEL_TODO:-llama3}
+      SPEAKLY_LLM_PROVIDER: ${SPEAKLY_LLM_PROVIDER:-auto}
       TODO_CONFIDENCE_THRESHOLD: ${TODO_CONFIDENCE_THRESHOLD:-0.35}
-      SPEAKLY_DEVELOPER_MODE: true
+      SPEAKLY_DEVELOPER_MODE: ${SPEAKLY_DEVELOPER_MODE:-false}
       TICKTICK_ENABLED: ${TICKTICK_ENABLED:-false}
       TICKTICK_CLIENT_ID: ${TICKTICK_CLIENT_ID:-}
       TICKTICK_CLIENT_SECRET: ${TICKTICK_CLIENT_SECRET:-}
       TICKTICK_REDIRECT_URI: ${TICKTICK_REDIRECT_URI:-http://localhost:8000/api/ticktick/callback}
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      SPEAKLY_CORS_ORIGINS: ${SPEAKLY_CORS_ORIGINS:-http://localhost:5173}
     ports:
       - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
 
   backend-tests:
     build:
@@ -62,6 +69,25 @@ services:
       - frontend_node_modules:/app/node_modules
     command: ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port 5173"]
 
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: speakly
+      POSTGRES_USER: speakly
+      POSTGRES_PASSWORD: speakly
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+
   ollama:
     image: ollama/ollama:latest
     ports:
@@ -74,3 +100,4 @@ services:
 volumes:
   frontend_node_modules:
   ollama_data:
+  postgres_data:

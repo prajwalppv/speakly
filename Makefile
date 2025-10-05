@@ -1,160 +1,115 @@
-.PHONY: help install test lint build dev deploy clean
+# Speakly developer utilities
 
-# Colors for output
+.DEFAULT_GOAL := help
+
+COMPOSE ?= docker compose
+LOCAL_SERVICES := db backend frontend
+
 GREEN := \033[0;32m
 YELLOW := \033[1;33m
-NC := \033[0m # No Color
+NC := \033[0m
 
 help: ## Show this help message
-	@echo "$(GREEN)Speakly - Available Commands$(NC)"
-	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+	@echo "$(GREEN)Speakly Commands$(NC)"
+	@echo
+	@grep -E '^[a-zA-Z0-9_.-]+:.*?## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-22s$(NC) %s\n", $$1, $$2}'
 
-# Installation
-install: install-backend install-frontend ## Install all dependencies
+# ---------------------------------------------------------------------------
+# Local development (Docker)
+# ---------------------------------------------------------------------------
 
-install-backend: ## Install backend dependencies
-	@echo "$(GREEN)Installing backend dependencies...$(NC)"
-	cd backend && pip install -r requirements-dev.txt
+local-up: ## Run Postgres, backend (uvicorn), and frontend (Vite) with Docker
+	$(COMPOSE) up --build $(LOCAL_SERVICES)
 
-install-frontend: ## Install frontend dependencies
-	@echo "$(GREEN)Installing frontend dependencies...$(NC)"
-	cd frontend && npm install
+local-up-detached: ## Run local stack in the background
+	$(COMPOSE) up -d --build $(LOCAL_SERVICES)
 
-# Testing
-test: test-backend ## Run all tests
+local-down: ## Stop services (containers preserved)
+	$(COMPOSE) down
 
-test-backend: ## Run backend tests
-	@echo "$(GREEN)Running backend tests...$(NC)"
-	cd backend && pytest tests/ -v
+local-reset: ## Stop and remove services, networks, and data volumes
+	$(COMPOSE) down --volumes --remove-orphans
 
-test-backend-coverage: ## Run backend tests with coverage
-	@echo "$(GREEN)Running backend tests with coverage...$(NC)"
-	cd backend && pytest tests/ --cov=app --cov-report=html --cov-report=term
+local-logs: ## Tail logs from db, backend, and frontend containers
+	$(COMPOSE) logs -f $(LOCAL_SERVICES)
 
-test-backend-watch: ## Run backend tests in watch mode
-	@echo "$(GREEN)Running backend tests in watch mode...$(NC)"
-	cd backend && pytest-watch
+backend-shell: ## Open a shell inside the backend container (requires running stack)
+	$(COMPOSE) exec backend bash
 
-# Linting
-lint: lint-backend lint-frontend ## Lint all code
+frontend-shell: ## Open a shell inside the frontend container (requires running stack)
+	$(COMPOSE) exec frontend sh
 
-lint-backend: ## Lint backend code
-	@echo "$(GREEN)Linting backend...$(NC)"
-	cd backend && ruff check app/ || true
-	cd backend && mypy app/ --ignore-missing-imports || true
+local-migrate: ## Run Alembic migrations against the local Postgres database
+	$(COMPOSE) run --rm backend alembic upgrade head
 
-lint-frontend: ## Lint frontend code
-	@echo "$(GREEN)Linting frontend...$(NC)"
-	cd frontend && npx tsc --noEmit
+backend-tests: ## Run backend pytest suite inside container
+	$(COMPOSE) run --rm backend-tests
 
-# Building
-build: build-frontend ## Build production bundles
+# ---------------------------------------------------------------------------
+# Frontend / backend convenience commands (host machine)
+# ---------------------------------------------------------------------------
 
-build-backend: ## Build backend Docker image
-	@echo "$(GREEN)Building backend Docker image...$(NC)"
-	docker build -t speakly-backend ./backend
-
-build-frontend: ## Build frontend for production
-	@echo "$(GREEN)Building frontend...$(NC)"
+frontend-build: ## Build the Vite project for production assets
 	cd frontend && npm run build
 
-# Development
-dev: ## Start development servers (both backend and frontend)
-	@echo "$(GREEN)Starting development servers...$(NC)"
-	docker compose up backend frontend
+backend-format: ## Format backend code (ruff + black) if available
+	cd backend && ruff check app --fix
+	cd backend && ruff format app
 
-dev-backend: ## Start backend dev server only
-	@echo "$(GREEN)Starting backend dev server...$(NC)"
-	cd backend && uvicorn app.main:app --reload --port 8000
+# ---------------------------------------------------------------------------
+# Fly.io deployment helpers
+# ---------------------------------------------------------------------------
 
-dev-frontend: ## Start frontend dev server only
-	@echo "$(GREEN)Starting frontend dev server...$(NC)"
-	cd frontend && npm run dev
+fly-deploy: fly-auth fly-ensure-db fly-deploy-backend fly-deploy-frontend ## Deploy backend and frontend to Fly.io
 
-# Database
-db-migrate: ## Run database migrations
-	@echo "$(GREEN)Running database migrations...$(NC)"
-	cd backend && alembic upgrade head
-
-db-migrate-create: ## Create new migration
-	@echo "$(GREEN)Creating new migration...$(NC)"
-	@read -p "Migration message: " msg; \
-	cd backend && alembic revision --autogenerate -m "$$msg"
-
-db-reset: ## Reset database (WARNING: destroys data)
-	@echo "$(YELLOW)⚠️  WARNING: This will destroy all data!$(NC)"
-	@read -p "Are you sure? [y/N] " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		cd backend && rm -f data/app.db && alembic upgrade head; \
+fly-auth: ## Ensure you are logged in to Fly.io (no-op if already authenticated)
+	@if ! flyctl auth whoami >/dev/null 2>&1; then \
+		echo "$(YELLOW)Logging into Fly.io...$(NC)"; \
+		flyctl auth login; \
+	else \
+		echo "$(GREEN)Already authenticated with Fly.io$(NC)"; \
 	fi
 
-# Deployment
-deploy: deploy-backend deploy-frontend ## Deploy both backend and frontend
+fly-ensure-db: ## Start the Fly Postgres app if it is stopped
+	@if [ -z "$(FLY_POSTGRES_APP)" ]; then \
+		echo "$(YELLOW)Set FLY_POSTGRES_APP to your Fly Postgres app name before running this command.$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(GREEN)Ensuring Fly Postgres app '$(FLY_POSTGRES_APP)' is running...$(NC)"
+	@status=$$(flyctl status --app $(FLY_POSTGRES_APP) --json); \
+	running=$$(echo "$$status" | jq -r '[.Machines[]?.State == "started"] | all'); \
+	if [ "$$running" != "true" ]; then \
+		echo "$(YELLOW)Postgres machines stopped; starting now...$(NC)"; \
+		flyctl machines start --app $(FLY_POSTGRES_APP) --all; \
+		flyctl status --app $(FLY_POSTGRES_APP); \
+	else \
+		echo "$(GREEN)Postgres machines already running.$(NC)"; \
+	fi
 
-deploy-backend: ## Deploy backend to Railway
-	@echo "$(GREEN)Deploying backend to Railway...$(NC)"
-	cd backend && railway up
+fly-deploy-backend: ## Deploy backend using fly.toml (requires flyctl login & secrets)
+	flyctl deploy --config fly.toml --remote-only --strategy immediate --app speakly-backend
 
-deploy-frontend: ## Deploy frontend to Vercel
-	@echo "$(GREEN)Deploying frontend to Vercel...$(NC)"
-	cd frontend && vercel --prod
+fly-deploy-frontend: ## Deploy frontend using frontend/fly.toml (expects Vite args via secrets/vars)
+	flyctl deploy \
+	  --config frontend/fly.toml \
+	  --remote-only \
+	  --strategy immediate \
+	  --build-arg VITE_CLERK_PUBLISHABLE_KEY=$${VITE_CLERK_PUBLISHABLE_KEY:?set VITE_CLERK_PUBLISHABLE_KEY} \
+	  --build-arg VITE_API_BASE_URL=$${VITE_API_BASE_URL:?set VITE_API_BASE_URL}
 
-# Cleaning
-clean: clean-backend clean-frontend ## Clean all build artifacts
+fly-logs-backend: ## Tail backend logs from Fly.io
+	flyctl logs --app speakly-backend
 
-clean-backend: ## Clean backend artifacts
-	@echo "$(GREEN)Cleaning backend...$(NC)"
-	cd backend && find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	cd backend && rm -rf .pytest_cache htmlcov .coverage
+fly-logs-frontend: ## Tail frontend logs from Fly.io
+	flyctl logs --app speakly-frontend
 
-clean-frontend: ## Clean frontend artifacts
-	@echo "$(GREEN)Cleaning frontend...$(NC)"
-	cd frontend && rm -rf dist node_modules/.cache
+fly-logs-db: ## Tail database logs from Fly.io Postgres cluster
+	flyctl logs --app speakly-db
 
-clean-all: clean ## Deep clean (including node_modules and venv)
-	@echo "$(YELLOW)Deep cleaning...$(NC)"
-	cd frontend && rm -rf node_modules
-	cd backend && rm -rf venv
+# ---------------------------------------------------------------------------
+# Misc utilities
+# ---------------------------------------------------------------------------
 
-# Docker
-docker-up: ## Start all services with Docker Compose
-	@echo "$(GREEN)Starting Docker services...$(NC)"
-	docker compose up -d
-
-docker-down: ## Stop all Docker services
-	@echo "$(GREEN)Stopping Docker services...$(NC)"
-	docker compose down
-
-docker-logs: ## Show Docker logs
-	docker compose logs -f
-
-docker-rebuild: ## Rebuild and restart Docker services
-	@echo "$(GREEN)Rebuilding Docker services...$(NC)"
-	docker compose up --build -d
-
-# Production checks
-pre-deploy: test-backend-coverage lint build ## Run all pre-deployment checks
-	@echo "$(GREEN)✅ All pre-deployment checks passed!$(NC)"
-
-# Quick commands
-quick-test: ## Quick test (backend only, no coverage)
-	cd backend && pytest tests/ -x --tb=short
-
-quick-check: ## Quick check (lint + type check)
-	cd backend && ruff check app/
-	cd frontend && npx tsc --noEmit
-
-# Stats
-stats: ## Show project statistics
-	@echo "$(GREEN)Project Statistics:$(NC)"
-	@echo ""
-	@echo "Backend:"
-	@echo "  Python files: $$(find backend/app -name '*.py' | wc -l)"
-	@echo "  Test files: $$(find backend/tests -name '*.py' | wc -l)"
-	@echo "  Lines of code: $$(find backend/app -name '*.py' -exec wc -l {} + | tail -1 | awk '{print $$1}')"
-	@echo ""
-	@echo "Frontend:"
-	@echo "  TypeScript files: $$(find frontend/src -name '*.ts' -o -name '*.tsx' | wc -l)"
-	@echo "  Lines of code: $$(find frontend/src -name '*.ts' -o -name '*.tsx' -exec wc -l {} + | tail -1 | awk '{print $$1}')"
+clean: ## Remove Python and Node build artifacts from the workspace
+	rm -rf backend/.pytest_cache backend/htmlcov backend/.coverage
+	rm -rf frontend/dist frontend/node_modules/.cache

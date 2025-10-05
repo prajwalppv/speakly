@@ -4,6 +4,8 @@ import asyncio
 import json
 import logging
 import textwrap
+from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Any
 import httpx
 
@@ -127,80 +129,122 @@ TITLE_PROMPT = textwrap.dedent(
 
 
 class LlmError(RuntimeError):
-    pass
+    """Raised when an LLM provider cannot fulfil a request."""
 
 
-class LlmService:
-    def __init__(self) -> None:
-        # Groq takes priority over Ollama (production vs local dev)
-        self.use_groq = bool(settings.groq_api_key)
-        self.groq_api_key = settings.groq_api_key
-        self.groq_model = settings.groq_model
-        self.ollama_base_url = settings.ollama_base_url
-        self.ollama_model_summary = settings.ollama_model_summary
-        self.ollama_model_todo = settings.ollama_model_todo
+class LlmTask(Enum):
+    """Enumeration of supported generation tasks."""
 
-    def is_enabled(self) -> bool:
-        return bool(self.groq_api_key or self.ollama_base_url)
+    TITLE = "title"
+    SUMMARY = "summary"
+    TODO = "todo"
+    TAGGING = "tagging"
 
-    def _generate(self, prompt: str, model: str) -> str:
-        if self.use_groq:
-            return self._generate_groq(prompt)
-        elif self.ollama_base_url:
-            return self._generate_ollama(prompt, model)
-        else:
-            raise LlmError("No LLM provider configured (GROQ_API_KEY or OLLAMA_BASE_URL)")
 
-    def _generate_groq(self, prompt: str) -> str:
-        """Generate text using Groq API (OpenAI-compatible)."""
+class LlmProvider(ABC):
+    """Abstract base class for pluggable LLM providers."""
+
+    name: str
+
+    def __init__(self, settings) -> None:
+        self._settings = settings
+
+    @abstractmethod
+    def is_available(self) -> bool:
+        """Return True when the provider has enough configuration to operate."""
+
+    @abstractmethod
+    def generate(self, prompt: str, task: LlmTask) -> str:
+        """Generate content for the given task."""
+
+    def model_for(self, task: LlmTask) -> str:
+        return ""
+
+    @property
+    def base_url(self) -> str | None:  # pragma: no cover - default implementation
+        return None
+
+
+class GroqProvider(LlmProvider):
+    name = "groq"
+
+    def __init__(self, settings) -> None:
+        super().__init__(settings)
+        self._api_key = (getattr(settings, "groq_api_key", "") or "").strip()
+        self._model = (getattr(settings, "groq_model", "") or "gpt-4o-mini").strip() or "gpt-4o-mini"
+
+    def is_available(self) -> bool:
+        return bool(self._api_key)
+
+    def generate(self, prompt: str, task: LlmTask) -> str:
+        if not self.is_available():
+            raise LlmError("Groq provider not configured")
+
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
-            "Authorization": f"Bearer {self.groq_api_key}",
-            "Content-Type": "application/json"
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
         }
         payload = {
-            "model": self.groq_model,
+            "model": self._model,
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant. Be concise and direct in your responses."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant. Be concise and direct in your responses.",
+                },
+                {"role": "user", "content": prompt},
             ],
-            "temperature": 0.7,
-            "max_tokens": 4000  # DeepSeek R1 needs more tokens for reasoning + answer
+            "temperature": 1.0,
+            "max_tokens": 4000,
         }
-        
+
         try:
             response = httpx.post(url, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover - network failure path
             raise LlmError(f"Groq API error: {exc}") from exc
 
         data = response.json()
         try:
             text = data["choices"][0]["message"]["content"]
-            # Strip DeepSeek R1 reasoning tags (chain-of-thought)
-            text = self._strip_thinking_tags(text)
-            return text.strip()
         except (KeyError, IndexError) as exc:
             raise LlmError(f"Unexpected Groq response format: {data}") from exc
 
-    def _strip_thinking_tags(self, text: str) -> str:
-        """Remove <think>...</think> tags from DeepSeek R1 responses."""
-        import re
-        
-        # Remove complete <think>...</think> blocks (multiline)
-        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
-        
-        # Remove incomplete thinking blocks (opening tag to end of string)
-        text = re.sub(r'<think>.*$', '', text, flags=re.DOTALL)
-        
-        # Remove any remaining standalone tags
-        text = re.sub(r'</?think>', '', text)
-        
-        return text.strip()
+        return self._strip_thinking_tags(text).strip()
 
-    def _generate_ollama(self, prompt: str, model: str) -> str:
-        """Generate text using Ollama (local development)."""
-        url = f"{self.ollama_base_url.rstrip('/')}/api/generate"
+    def model_for(self, task: LlmTask) -> str:
+        return self._model
+
+    @staticmethod
+    def _strip_thinking_tags(text: str) -> str:
+        import re
+
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        text = re.sub(r"<think>.*$", "", text, flags=re.DOTALL)
+        return re.sub(r"</?think>", "", text)
+
+
+class OllamaProvider(LlmProvider):
+    name = "ollama"
+
+    def __init__(self, settings) -> None:
+        super().__init__(settings)
+        base_url = (getattr(settings, "ollama_base_url", "") or "").strip()
+        self._base_url = base_url.rstrip("/")
+        summary_model = (getattr(settings, "ollama_model_summary", "") or "llama3").strip()
+        self._summary_model = summary_model or "llama3"
+        todo_model = (getattr(settings, "ollama_model_todo", "") or self._summary_model).strip()
+        self._todo_model = todo_model or self._summary_model
+
+    def is_available(self) -> bool:
+        return bool(self._base_url)
+
+    def generate(self, prompt: str, task: LlmTask) -> str:
+        if not self.is_available():
+            raise LlmError("Ollama provider not configured")
+
+        model = self.model_for(task) or self._summary_model
+        url = f"{self._base_url}/api/generate"
         try:
             response = httpx.post(
                 url,
@@ -208,7 +252,7 @@ class LlmService:
                 timeout=60,
             )
             response.raise_for_status()
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover - network failure path
             raise LlmError(f"Ollama error: {exc}") from exc
 
         data = response.json()
@@ -217,11 +261,100 @@ class LlmService:
             raise LlmError("Missing response from Ollama")
         return text.strip()
 
+    def model_for(self, task: LlmTask) -> str:
+        if task is LlmTask.TODO:
+            return self._todo_model
+        return self._summary_model
+
+    @property
+    def base_url(self) -> str | None:
+        return self._base_url or None
+
+
+PROVIDER_REGISTRY: tuple[type[LlmProvider], ...] = (
+    GroqProvider,
+    OllamaProvider,
+)
+
+
+class LlmService:
+    """High-level orchestration layer that delegates to the selected provider."""
+
+    def __init__(self, provider_name: str | None = None) -> None:
+        raw_requested = provider_name or getattr(settings, "llm_provider", "auto") or "auto"
+        requested = str(raw_requested).strip().lower() or "auto"
+
+        self.requested_provider = requested
+        self._providers = [provider_cls(settings) for provider_cls in PROVIDER_REGISTRY]
+        self._available_providers = [provider for provider in self._providers if provider.is_available()]
+        self._provider = self._select_provider(requested)
+
+    def _select_provider(self, requested: str) -> LlmProvider | None:
+        if requested == "none":
+            return None
+
+        if requested == "auto" or not requested:
+            return self._available_providers[0] if self._available_providers else None
+
+        for provider in self._available_providers:
+            if provider.name == requested:
+                return provider
+
+        if requested not in {"auto", "none"}:
+            logger.warning(
+                "Requested LLM provider '%s' not available; falling back to first available",
+                requested,
+            )
+        return self._available_providers[0] if self._available_providers else None
+
+    @property
+    def provider(self) -> LlmProvider | None:
+        return self._provider
+
+    @property
+    def provider_name(self) -> str:
+        return self._provider.name if self._provider else "none"
+
+    def is_enabled(self) -> bool:
+        return self.provider is not None
+
+    @property
+    def base_url(self) -> str | None:
+        provider = self.provider
+        return provider.base_url if provider else None
+
+    @property
+    def summary_model_name(self) -> str:
+        provider = self.provider
+        return provider.model_for(LlmTask.SUMMARY) if provider else ""
+
+    @property
+    def model_summary(self) -> str:
+        return self.summary_model_name
+
+    @property
+    def todo_model_name(self) -> str:
+        provider = self.provider
+        return provider.model_for(LlmTask.TODO) if provider else ""
+
+    @property
+    def model_todo(self) -> str:
+        return self.todo_model_name
+
+    def _generate(self, prompt: str, task: LlmTask) -> str:
+        return self.generate_with_provider(prompt, task)
+
+    def generate_with_provider(self, prompt: str, task: LlmTask) -> str:
+        provider = self.provider
+        if not provider:
+            raise LlmError("LLM provider disabled")
+        return provider.generate(prompt, task)
+
     def generate_title(self, transcript: str) -> str:
         """Generate a short, memorable title from the transcript."""
         prompt = TITLE_PROMPT.format(transcript=transcript.strip())
         try:
-            title = self._generate(prompt, self.ollama_model_summary)
+            title = self._generate(prompt, LlmTask.TITLE)
             # Clean up and limit length
             title = title.strip().strip('"').strip("'")
             if len(title) > 60:
@@ -238,7 +371,7 @@ class LlmService:
     def generate_summary(self, transcript: str) -> str:
         prompt = SUMMARY_PROMPT.format(transcript=transcript.strip())
         try:
-            return self._generate(prompt, self.ollama_model_summary)
+            return self._generate(prompt, LlmTask.SUMMARY)
         except LlmError:
             logger.warning("Falling back to built-in summariser")
             sentences = transcript.split(".")
@@ -255,7 +388,7 @@ class LlmService:
         prompt = TODO_PROMPT.format(transcript=transcript.strip())
         raw = None
         try:
-            raw = self._generate(prompt, self.ollama_model_todo)
+            raw = self._generate(prompt, LlmTask.TODO)
         except LlmError:
             logger.warning("Falling back to empty TODO response")
             return {"new_tasks": [], "task_updates": []}
@@ -434,7 +567,10 @@ def _run_summary_and_todos(session_id: int, transcription_id: int) -> None:
     """
     service = LlmService()
     if not service.is_enabled():
-        logger.info("OLLAMA_BASE_URL not configured; skipping LLM jobs")
+        logger.info(
+            "LLM provider disabled; skipping LLM jobs",
+            extra={"extra_data": {"requested_provider": service.requested_provider}},
+        )
         return
 
     with SessionLocal() as db:
@@ -458,7 +594,7 @@ def _run_summary_and_todos(session_id: int, transcription_id: int) -> None:
             session_id=session.id,
             transcription_id=transcription.id,
             run_type="summary",
-            model=service.model_summary,
+            model=service.summary_model_name,
             prompt=SUMMARY_PROMPT,
         )
         db.add(summary_run)
@@ -506,7 +642,7 @@ def _run_summary_and_todos(session_id: int, transcription_id: int) -> None:
             session_id=session.id,
             transcription_id=transcription.id,
             run_type="todos",
-            model=service.model_todo,
+            model=service.todo_model_name,
             prompt=TODO_PROMPT,
         )
         db.add(todo_run)

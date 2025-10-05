@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     ollama_base_url: str | None = Field(default=None, env="OLLAMA_BASE_URL")
     ollama_model_summary: str = Field(default="llama3", env="OLLAMA_MODEL_SUMMARY")
     ollama_model_todo: str = Field(default="llama3", env="OLLAMA_MODEL_TODO")
+    llm_provider: Literal["auto", "groq", "ollama", "none"] = Field(
+        default="auto", env="SPEAKLY_LLM_PROVIDER"
+    )
     
     todo_confidence_threshold: float = Field(
         default=0.35, env="TODO_CONFIDENCE_THRESHOLD"

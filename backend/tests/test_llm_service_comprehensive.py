@@ -13,7 +13,7 @@ class TestLlmServiceInit:
 
     def test_init_sets_configuration(self):
         """Test that LlmService initializes with correct config."""
-        from app.services.llm import LlmService
+        from app.services.llm import LlmService, LlmTask
         
         service = LlmService()
         
@@ -28,7 +28,7 @@ class TestLlmServiceIsEnabled:
     @patch('app.services.llm.settings')
     def test_is_enabled_true_when_base_url_set(self, mock_settings):
         """Test is_enabled returns True when base_url is configured."""
-        from app.services.llm import LlmService
+        from app.services.llm import LlmService, LlmTask
         
         mock_settings.ollama_base_url = "http://localhost:11434"
         service = LlmService()
@@ -74,7 +74,7 @@ class TestLlmServiceGenerate:
         mock_post.return_value = mock_response
         
         service = LlmService()
-        result = service._generate("Test prompt", "llama3")
+        result = service._generate("Test prompt", LlmTask.SUMMARY)
         
         assert result == "Generated text"
         mock_post.assert_called_once()
@@ -82,19 +82,22 @@ class TestLlmServiceGenerate:
     @patch('app.services.llm.settings')
     def test_generate_raises_error_when_not_configured(self, mock_settings):
         """Test _generate raises error when base_url not configured."""
-        from app.services.llm import LlmService, LlmError
+        from app.services.llm import LlmService, LlmError, LlmTask
         
         mock_settings.ollama_base_url = ""
-        service = LlmService()
+        mock_settings.groq_api_key = ""
+        mock_settings.llm_provider = "auto"
         
-        with pytest.raises(LlmError, match="OLLAMA_BASE_URL not configured"):
-            service._generate("Test prompt", "llama3")
+        service = LlmService()
+
+        with pytest.raises(LlmError, match="LLM provider disabled"):
+            service._generate("Test prompt", LlmTask.SUMMARY)
 
     @patch('app.services.llm.httpx.post')
     @patch('app.services.llm.settings')
     def test_generate_raises_error_when_response_empty(self, mock_settings, mock_post):
         """Test _generate raises error when response is missing."""
-        from app.services.llm import LlmService, LlmError
+        from app.services.llm import LlmService, LlmError, LlmTask
         
         mock_settings.ollama_base_url = "http://localhost:11434"
         mock_settings.ollama_model_summary = "llama3"
@@ -107,7 +110,7 @@ class TestLlmServiceGenerate:
         service = LlmService()
         
         with pytest.raises(LlmError, match="Missing response from Ollama"):
-            service._generate("Test prompt", "llama3")
+            service._generate("Test prompt", LlmTask.SUMMARY)
 
     @patch('app.services.llm.httpx.post')
     @patch('app.services.llm.settings')
@@ -124,7 +127,7 @@ class TestLlmServiceGenerate:
         mock_post.return_value = mock_response
         
         service = LlmService()
-        result = service._generate("Test prompt", "llama3")
+        result = service._generate("Test prompt", LlmTask.SUMMARY)
         
         assert result == "Generated text"
 

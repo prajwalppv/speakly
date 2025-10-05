@@ -102,11 +102,11 @@ class TaggingService:
     def _generate_tags_with_llm(self, transcript: str, summary: str) -> List[Dict[str, Any]]:
         """Generate tags using LLM."""
         try:
-            from .llm import LlmService, LlmError
+            from .llm import LlmService, LlmError, LlmTask
             
             service = LlmService()
             if not service.is_enabled():
-                logger.info("Ollama not configured, skipping AI tag generation")
+                logger.info("LLM provider disabled, skipping AI tag generation")
                 return []
             
             # Get max tags from settings
@@ -118,10 +118,7 @@ class TaggingService:
                 max_tags=max_llm_tags
             )
             
-            response = service._generate(
-                prompt=prompt,
-                model=settings.ollama_model_summary  # Use same model as summaries
-            )
+            response = service.generate_with_provider(prompt, LlmTask.TAGGING)
             
             # Debug: Log the raw response
             logger.info(f"LLM raw response (first 500 chars): {response[:500]}")

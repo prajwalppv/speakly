@@ -415,8 +415,10 @@ async def upload_audio_bulk(
                     session_record.status = "processing"
                     asyncio.create_task(_trigger_mock_webhook(session_record.id, transcription.id))
                 else:
-                    submission = await elevenlabs_client.submit_transcription(
-                        stored_path, webhook_url, metadata
+                    submission = elevenlabs_client.submit_transcription(
+                        audio_path=stored_path,
+                        webhook_url=webhook_url,
+                        metadata=metadata,
                     )
                     transcription.provider_job_id = submission.get("request_id")
                     transcription.status = "submitted"
