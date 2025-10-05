@@ -64,6 +64,10 @@ Visit: http://localhost:5173
 - **PostgreSQL** - Production database
 - **Docker** - Containerization
 
+### Continuous Integration
+- **Backend CI** – Runs the FastAPI test suite on every push/PR
+- **Frontend CI** – Builds the React app to ensure production assets compile cleanly
+
 ---
 
 ## 📁 Project Structure

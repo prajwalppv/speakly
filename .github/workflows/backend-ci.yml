@@ -1,0 +1,86 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "backend/**"
+      - "docker-compose.yml"
+      - "Makefile"
+      - "start.sh"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "backend/**"
+      - "docker-compose.yml"
+      - "Makefile"
+      - "start.sh"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  tests:
+    name: Run backend tests
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}/backend
+      SPEAKLY_ENVIRONMENT: test
+      SPEAKLY_DATABASE_URL: sqlite:///./app/data/test.db
+      SPEAKLY_AUDIO_DIR: ./app/storage/audio
+      SPEAKLY_LOG_LEVEL: INFO
+      SPEAKLY_DEVELOPER_MODE: "false"
+      ELEVENLABS_API_KEY: test
+      ELEVENLABS_BASE_URL: https://api.elevenlabs.io
+      ELEVENLABS_WEBHOOK_SECRET: test
+      ELEVENLABS_WEBHOOK_ID: test
+      ELEVENLABS_DIARIZATION_ENABLED: "true"
+      ELEVENLABS_DIARIZATION_THRESHOLD: "0.5"
+      GROQ_API_KEY: test
+      GROQ_MODEL: deepseek-r1-distill-llama-70b
+      OLLAMA_BASE_URL: http://localhost:11434
+      OLLAMA_MODEL_SUMMARY: llama3
+      OLLAMA_MODEL_TODO: llama3
+      TICKTICK_ENABLED: "false"
+      TICKTICK_CLIENT_ID: test
+      TICKTICK_CLIENT_SECRET: test
+      TICKTICK_REDIRECT_URI: http://localhost:8000/api/ticktick/callback
+      TICKTICK_BASE_URL: https://api.ticktick.com/open/v1
+      SPEAKLY_FEATURE_AUTO_TAGGING: "true"
+      SPEAKLY_FEATURE_CUSTOM_TAGS: "true"
+      SPEAKLY_FEATURE_ADVANCED_SEARCH: "true"
+      SPEAKLY_FEATURE_REPORT_GENERATION: "false"
+      SPEAKLY_FEATURE_COMMAND_PALETTE: "true"
+      SPEAKLY_MAX_TAGS_PER_SESSION: "5"
+      SPEAKLY_FREE_RECORDINGS_PER_MONTH: "10"
+      SPEAKLY_FREE_TASKS_PER_SESSION: "3"
+      SPEAKLY_FREE_TAGS_PER_SESSION: "3"
+      PJ_PROFILE_NAME: PJ
+      PJ_VOICE_TAGS: pj,patrick
+      TODO_CONFIDENCE_THRESHOLD: "0.35"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Prepare runtime directories
+        run: |
+          mkdir -p app/data
+          mkdir -p app/logs
+          mkdir -p app/storage/audio
+
+      - name: Run pytest suite
+        run: pytest

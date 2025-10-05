@@ -50,3 +50,4 @@ backend/app/data/
 backend/app/logs/
 backend/app/storage/
 
+.env
