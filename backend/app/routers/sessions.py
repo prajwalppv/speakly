@@ -175,10 +175,17 @@ async def list_sessions(
     if to_date:
         speaker_query = speaker_query.filter(SessionModel.created_at <= to_date)
 
-    sessions = (
-        speaker_query.distinct().order_by(SessionModel.created_at.desc()).all()
-    )
-    return [_serialize_session(session) for session in sessions]
+    sessions = speaker_query.order_by(SessionModel.created_at.desc()).all()
+
+    # When joins are applied (e.g. speaker filter) duplicates can be returned; de-dupe by id.
+    unique_sessions: list[SessionModel] = []
+    seen_ids: set[int] = set()
+    for session in sessions:
+        if session.id not in seen_ids:
+            unique_sessions.append(session)
+            seen_ids.add(session.id)
+
+    return [_serialize_session(session) for session in unique_sessions]
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
