@@ -77,14 +77,20 @@ class Settings(BaseSettings):
     feature_advanced_search: bool = Field(default=True, env="SPEAKLY_FEATURE_ADVANCED_SEARCH")
     feature_report_generation: bool = Field(default=False, env="SPEAKLY_FEATURE_REPORT_GENERATION")
     feature_command_palette: bool = Field(default=True, env="SPEAKLY_FEATURE_COMMAND_PALETTE")
-    
+
     # Tagging Configuration
     max_tags_per_session: int = Field(default=5, env="SPEAKLY_MAX_TAGS_PER_SESSION")
-    
+
     # Usage Limits (for free tier)
     free_recordings_per_month: int = Field(default=10, env="SPEAKLY_FREE_RECORDINGS_PER_MONTH")
     free_tasks_per_session: int = Field(default=3, env="SPEAKLY_FREE_TASKS_PER_SESSION")
     free_tags_per_session: int = Field(default=3, env="SPEAKLY_FREE_TAGS_PER_SESSION")
+
+    # CORS configuration
+    cors_origins: str = Field(
+        default="http://localhost:5173,https://speakly-frontend.fly.dev",
+        env="SPEAKLY_CORS_ORIGINS",
+    )
 
     class Config:
         env_file = ".env"
@@ -93,6 +99,13 @@ class Settings(BaseSettings):
     @property
     def pj_voice_tag_set(self) -> set[str]:
         return {tag.strip().lower() for tag in self.pj_voice_tags.split(",") if tag.strip()}
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        raw = self.cors_origins.strip()
+        if not raw or raw == "*":
+            return ["*"]
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
 
 
 settings = Settings()
