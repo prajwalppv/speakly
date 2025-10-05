@@ -1,0 +1,60 @@
+# Fly.io Configuration for Speakly Backend
+
+app = "speakly-backend"
+primary_region = "sjc"  # San Jose - change to your preferred region
+
+[build]
+  dockerfile = "backend/Dockerfile"
+
+[env]
+  SPEAKLY_ENVIRONMENT = "prod"
+  SPEAKLY_LOG_LEVEL = "INFO"
+  PORT = "8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 200
+    soft_limit = 100
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8000
+  processes = ["app"]
+  
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "1s"
+
+[[vm]]
+  memory = '2gb'
+  cpu_kind = 'shared'
+  cpus = 2
+
+# Persistent storage for audio files
+[mounts]
+  source = "speakly_audio_storage"
+  destination = "/app/backend/storage"
+  initial_size = "10gb"

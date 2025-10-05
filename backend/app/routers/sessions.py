@@ -1,20 +1,25 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
+from ..auth import get_current_user
 from ..config import settings
 from ..database import get_session
 from ..models import Session as SessionModel
+from ..models import User
 from ..models import SpeakerProfile, SpeakerSegment
+from ..models import Tag, SessionTag
 from ..models import Todo as TodoModel
 from ..models import Transcription as TranscriptionModel
 from ..schemas import (
     SessionResponse,
     SpeakerSegmentResponse,
     SummaryResponse,
+    TagResponse,
     TodoResponse,
     TranscriptionResponse,
 )
@@ -74,43 +79,75 @@ def _serialize_todo(model: TodoModel) -> TodoResponse:
         source_start_ms=model.source_start_ms,
         source_end_ms=model.source_end_ms,
         source_excerpt=model.source_excerpt,
+        ticktick_sync_status=model.ticktick_sync_status,
+        ticktick_task_id=model.ticktick_task_id,
+        ticktick_synced_at=model.ticktick_synced_at,
+        ticktick_sync_error=model.ticktick_sync_error,
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
 
 
+def _serialize_tag(session_tag: SessionTag) -> TagResponse:
+    tag = session_tag.tag
+    return TagResponse(
+        id=tag.id,
+        name=tag.name,
+        category=tag.category,
+        color=tag.color,
+        auto_generated=tag.auto_generated,
+        usage_count=0,  # Not calculated per-session
+        created_at=tag.created_at
+    )
+
+
 def _serialize_session(model: SessionModel) -> SessionResponse:
+    # Count task updates from LLM run metadata
+    task_updates_count = 0
+    if model.summary_run and model.summary_run.metadata_payload:
+        task_updates = model.summary_run.metadata_payload.get("task_updates", [])
+        task_updates_count = len(task_updates) if task_updates else 0
+    
     return SessionResponse(
         id=model.id,
         status=model.status,
+        description=model.description,
         audio_path=model.audio_path,
         last_error=model.last_error,
         last_transcribed_at=model.last_transcribed_at,
         has_pj=model.has_pj,
         todo_count=model.todo_count,
+        task_updates_count=task_updates_count,
+        processing_stages=model.processing_stages,
         created_at=model.created_at,
         updated_at=model.updated_at,
         transcriptions=[_serialize_transcription(t) for t in model.transcriptions],
         speaker_segments=[_serialize_segment(s) for s in model.speaker_segments],
         summary=_serialize_summary(model),
         todos=[_serialize_todo(todo) for todo in model.todos],
+        tags=[_serialize_tag(st) for st in model.session_tags],
     )
 
 
 @router.get("", response_model=list[SessionResponse])
-def list_sessions(
+async def list_sessions(
     has_pj: bool | None = Query(default=None),
     speaker: str | None = Query(default=None, description="Filter by speaker label or profile"),
     q: str | None = Query(default=None, description="Search transcript text"),
     from_date: datetime | None = Query(default=None, alias="from"),
     to_date: datetime | None = Query(default=None, alias="to"),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> list[SessionResponse]:
-    speaker_query = db.query(SessionModel).options(
+    # Filter by authenticated user
+    speaker_query = db.query(SessionModel).filter(
+        SessionModel.user_id == current_user.id
+    ).options(
         joinedload(SessionModel.transcriptions),
         joinedload(SessionModel.speaker_segments).joinedload(SpeakerSegment.speaker_profile),
         joinedload(SessionModel.todos),
         joinedload(SessionModel.summary_run),
+        joinedload(SessionModel.session_tags).joinedload(SessionTag.tag),
     )
 
     if has_pj is not None:
@@ -147,6 +184,7 @@ def list_sessions(
 @router.get("/{session_id}", response_model=SessionResponse)
 def get_session_detail(
     session_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> SessionResponse:
     session = (
@@ -158,10 +196,194 @@ def get_session_detail(
             ),
             joinedload(SessionModel.todos),
             joinedload(SessionModel.summary_run),
+            joinedload(SessionModel.session_tags).joinedload(SessionTag.tag),
         )
-        .filter_by(id=session_id)
+        .filter(
+            SessionModel.id == session_id,
+            SessionModel.user_id == current_user.id  # Ensure user owns this session
+        )
         .one_or_none()
     )
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return _serialize_session(session)
+
+
+@router.post("/{session_id}/retry", status_code=202)
+def retry_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> dict[str, str]:
+    """
+    Retry processing for a failed session.
+    
+    Args:
+        session_id: ID of session to retry
+        db: Database session
+    
+    Returns:
+        Status message
+    
+    Raises:
+        HTTPException: 404 if session not found
+    """
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_id,
+        SessionModel.user_id == current_user.id  # Ensure user owns this session
+    ).first()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Clear error and reset to pending
+    session.last_error = None
+    session.status = "pending"
+    
+    # Find failed transcriptions
+    failed_transcriptions = [
+        t for t in session.transcriptions
+        if t.status == "error"
+    ]
+    
+    for transcription in failed_transcriptions:
+        transcription.status = "pending"
+        transcription.error = None
+    
+    db.commit()
+    
+    # Re-trigger processing (would call services in production)
+    logger.info(
+        f"Retrying session {session_id}",
+        extra={"session_id": session_id, "transcription_count": len(failed_transcriptions)}
+    )
+    
+    return {
+        "message": f"Session {session_id} queued for retry",
+        "transcriptions_reset": len(failed_transcriptions)
+    }
+
+
+@router.post("/{session_id}/regenerate", status_code=202)
+def regenerate_summary_and_tasks(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> dict[str, str]:
+    """
+    Regenerate summary and tasks from the current transcript.
+    
+    Useful after editing a transcript to get fresh AI insights.
+    
+    Args:
+        session_id: ID of session to regenerate
+        db: Database session
+    
+    Returns:
+        Status message
+    
+    Raises:
+        HTTPException: 404 if session not found, 400 if no transcript available
+    """
+    from ..services.llm import _run_summary_and_todos
+    import asyncio, threading
+    
+    logger.info(
+        f"🔄 REGENERATE ENDPOINT CALLED for session {session_id}",
+        extra={"session_id": session_id}
+    )
+    
+    session = db.query(SessionModel).filter(
+        SessionModel.id == session_id,
+        SessionModel.user_id == current_user.id  # Ensure user owns this session
+    ).first()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Check if we have a transcript to work with
+    transcription = session.transcriptions[0] if session.transcriptions else None
+    if not transcription or not transcription.text:
+        raise HTTPException(
+            status_code=400,
+            detail="No transcript available to regenerate from"
+        )
+    
+    # Clear old tasks (delete from TickTick if synced)
+    from ..services.task_sync_service import task_sync_service
+    import asyncio
+    
+    old_todos = session.todos[:]
+    for todo in old_todos:
+        # Delete from TickTick if synced
+        if todo.ticktick_task_id and todo.ticktick_project_id:
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(
+                        task_sync_service.delete_from_ticktick(
+                            todo.ticktick_task_id,
+                            todo.ticktick_project_id
+                        )
+                    )
+                finally:
+                    loop.close()
+            except Exception as e:
+                logger.warning(f"Failed to delete task {todo.ticktick_task_id} from TickTick: {e}")
+        
+        db.delete(todo)
+    
+    # Clear old summary/LLM run
+    if session.summary_run:
+        db.delete(session.summary_run)
+        session.summary_run_id = None
+    
+    # Clear old tags
+    from ..models import SessionTag
+    db.query(SessionTag).filter(SessionTag.session_id == session_id).delete()
+    
+    # Reset session status for re-processing
+    session.status = "processing"
+    session.todo_count = 0
+    session.last_error = None  # Clear any previous errors
+    
+    # Reset ALL processing stages to pending (fresh start)
+    from datetime import datetime
+    session.processing_stages = {
+        "uploaded": {"status": "completed", "timestamp": session.created_at.isoformat()},
+        "transcribing": {"status": "completed", "timestamp": session.last_transcribed_at.isoformat() if session.last_transcribed_at else None},
+        "diarizing": {"status": "pending", "timestamp": None},
+        "summarizing": {"status": "pending", "timestamp": None},
+        "extracting_tasks": {"status": "pending", "timestamp": None},
+        "tagging": {"status": "pending", "timestamp": None},
+        "syncing_tasks": {"status": "pending", "timestamp": None},
+    }
+    
+    db.commit()
+    
+    logger.info(
+        f"Cleared {len(old_todos)} old tasks and summary for session {session_id}",
+        extra={"session_id": session_id, "tasks_cleared": len(old_todos)}
+    )
+    
+    # Run LLM processing in background thread
+    def run_processing():
+        # Need to get transcription_id
+        _run_summary_and_todos(session_id, transcription.id)
+    
+    thread = threading.Thread(target=run_processing, daemon=True)
+    thread.start()
+    
+    logger.info(
+        f"Regenerating summary and tasks for session {session_id}",
+        extra={"session_id": session_id}
+    )
+    
+    return {
+        "message": f"Regeneration started for session {session_id}",
+        "status": "processing"
+    }
+
+
+logger = logging.getLogger(__name__)

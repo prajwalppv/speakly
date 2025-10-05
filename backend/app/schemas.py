@@ -3,10 +3,30 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
-class APIError(BaseModel):
+# Base model with proper datetime serialization (always UTC with 'Z')
+class UTCBaseModel(BaseModel):
+    """Base model that serializes datetime fields with UTC indicator."""
+    
+    model_config = ConfigDict(
+        json_schema_extra={},
+        ser_json_timedelta='iso8601',
+    )
+    
+    def model_dump(self, **kwargs):
+        """Override to add 'Z' to datetime fields."""
+        data = super().model_dump(**kwargs)
+        # Add 'Z' suffix to any datetime strings
+        for key, value in data.items():
+            if isinstance(value, str) and 'T' in value and not value.endswith('Z'):
+                # This is likely an ISO datetime without timezone
+                data[key] = value + 'Z'
+        return data
+
+
+class APIError(UTCBaseModel):
     type: str = Field(..., description="Short machine-readable error label")
     message: str = Field(..., description="Human-readable description of the error")
     details: dict | None = Field(default=None, description="Optional additional context")
@@ -25,7 +45,7 @@ class AudioUploadResponse(BaseModel):
     developer_message: str | None = None
 
 
-class TranscriptionResponse(BaseModel):
+class TranscriptionResponse(UTCBaseModel):
     id: int
     status: str
     text: str | None
@@ -50,7 +70,21 @@ class SpeakerSegmentResponse(BaseModel):
     speaker_profile: str | None
 
 
-class TodoResponse(BaseModel):
+class TaskUpdateInfo(BaseModel):
+    """Information about a task update from voice note."""
+    title: str
+    status: str
+    notes: str | None
+    confidence: float
+    source_excerpt: str | None
+    matched_task_id: str | None = None
+    matched_title: str | None = None
+    match_score: int | None = None
+    match_quality: str | None = None
+    auto_updated: bool = False
+
+
+class TodoResponse(UTCBaseModel):
     id: int
     title: str
     due_hint: str | None
@@ -59,6 +93,10 @@ class TodoResponse(BaseModel):
     source_start_ms: int | None
     source_end_ms: int | None
     source_excerpt: str | None
+    ticktick_sync_status: str
+    ticktick_task_id: str | None
+    ticktick_synced_at: datetime | None
+    ticktick_sync_error: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -69,22 +107,51 @@ class SummaryResponse(BaseModel):
     text: str | None
     status: str
     updated_at: datetime
+    task_updates: list[dict] | None = None  # Task updates found in this session
 
 
-class SessionResponse(BaseModel):
+class TagResponse(UTCBaseModel):
+    """Response model for tag."""
+    id: int
+    name: str
+    category: str
+    color: str
+    auto_generated: bool
+    usage_count: int = 0
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class TagCreate(BaseModel):
+    """Request model for creating a custom tag."""
+    name: str = Field(..., min_length=1, max_length=50)
+    category: str | None = Field(default="custom")
+    color: str | None = None
+
+
+class SessionResponse(UTCBaseModel):
     id: int
     status: str
+    description: str | None
     audio_path: Path | None
     last_error: str | None
     last_transcribed_at: datetime | None
     has_pj: bool
     todo_count: int
+    task_updates_count: int = 0  # Number of task updates processed
+    processing_stages: dict | None = None  # Track processing progress
     created_at: datetime
     updated_at: datetime
     transcriptions: list[TranscriptionResponse]
     speaker_segments: list[SpeakerSegmentResponse]
     summary: SummaryResponse | None
     todos: list[TodoResponse]
+    tags: list[TagResponse] = []
+    
+    class Config:
+        orm_mode = True
 
 
 class ElevenLabsWebhookTranscription(BaseModel):
@@ -153,4 +220,6 @@ __all__ = [
     "SummaryResponse",
     "SessionResponse",
     "ElevenLabsWebhookPayload",
+    "TagResponse",
+    "TagCreate",
 ]

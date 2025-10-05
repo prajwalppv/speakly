@@ -1,100 +1,189 @@
-# Speakly Phase 3
+# 🎙️ Speakly
 
-Phase 3 turns Speakly into a speaker-aware, action-oriented assistant. The backend is a FastAPI service backed by SQLite, ElevenLabs for transcription + diarization, and optional Ollama + n8n sidecars. The frontend (React + Vite) now visualises speakers, summaries, and TODOs.
+**AI-powered voice transcription with automatic summaries, tags, and task extraction.**
 
-## Highlights
+---
 
-- ElevenLabs webhook pipeline with diarization + PJ voice tagging and advanced metadata
-- LLM-powered summaries and actionable TODO extraction (via Ollama, with graceful fallbacks)
-- Rich filtering (`/api/sessions?speaker=PJ&has_pj=true&q=sync`) and session details including speaker timelines
-- Frontend dashboard to upload audio, browse sessions, review summaries, and manage todos
-- Optional n8n automation profile ready to sync todos with external task managers
+## 🚀 Features
 
-## Prerequisites
+- 🎙️ **Voice Transcription** - ElevenLabs Scribe STT
+- 🤖 **AI Summaries** - DeepSeek R1 Distill (70B) via Groq
+- 🏷️ **Auto-tagging** - Smart content categorization
+- ✅ **TODO Extraction** - Automatic task identification
+- 🔄 **TickTick Integration** - Sync tasks automatically
+- 👥 **Multi-user** - Secure Clerk authentication
+- 📦 **Bulk Upload** - Process up to 50 files at once
+- 📊 **Sessions Dashboard** - Beautiful UI with collapsible cards
 
-- Docker Desktop / Engine 24+
-- Docker Compose v2
-- ElevenLabs account + Speech-to-Text webhook configured (point to `https://<your-ngrok>/api/webhooks/elevenlabs`)
-- (Optional) Ollama for local LLM generation
+---
 
-## Environment
+## 📦 Quick Start
 
-Edit `.env` to supply credentials and toggles:
-
-```
-SPEAKLY_ENVIRONMENT=prod
-SPEAKLY_LOG_LEVEL=INFO
-ELEVENLABS_API_KEY=...
-ELEVENLABS_WEBHOOK_SECRET=...
-ELEVENLABS_WEBHOOK_ID=             # optional explicit webhook id
-ELEVENLABS_DIARIZATION_ENABLED=true
-PJ_PROFILE_NAME=PJ
-PJ_VOICE_TAGS=pj,patrick
-OLLAMA_BASE_URL=http://ollama:11434
-OLLAMA_MODEL_SUMMARY=llama3
-OLLAMA_MODEL_TODO=llama3
-TODO_CONFIDENCE_THRESHOLD=0.35
-SPEAKLY_DEVELOPER_MODE=false
-```
-
-## Running the stack
-
-### Core services (backend + frontend)
+### Local Development
 
 ```bash
+# 1. Copy environment file
+cp .env.example .env
+
+# 2. Add your API keys to .env
+
+# 3. Start the app
 docker compose up --build backend frontend
 ```
 
-- Backend: `http://localhost:8000`
-  - `POST /api/audio` – upload audio (multipart)
-  - `POST /api/webhooks/elevenlabs` – ElevenLabs callback
-  - `GET /api/sessions` – list with filters (`has_pj`, `speaker`, `q`, `from`, `to`)
-  - `GET /api/sessions/{id}` – full session details (speaker segments, summary, todos)
-- Frontend: `http://localhost:5173`
-  - Upload samples
-  - Browse session list with filters
-  - Review summaries, TODOs, and diarization timeline
+Visit: http://localhost:5173
 
-### Enable Ollama (LLM summaries + todos)
+---
 
-```bash
-docker compose up --build backend frontend --profile llm
+## 🚀 Production Deployment
+
+**Deploy to Fly.io in 30 minutes:**
+
+👉 **See [DEPLOY.md](DEPLOY.md) for complete step-by-step instructions**
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+- **FastAPI** - Modern Python web framework
+- **SQLAlchemy** - ORM with PostgreSQL
+- **ElevenLabs** - Voice transcription
+- **Groq** - LLM inference (DeepSeek R1 Distill 70B)
+- **Clerk** - Authentication
+- **TickTick** - Task management integration
+
+### Frontend
+- **React 18** - UI library
+- **TypeScript** - Type safety
+- **Vite** - Build tool
+- **Axios** - HTTP client
+
+### Infrastructure
+- **Fly.io** - Global edge deployment
+- **PostgreSQL** - Production database
+- **Docker** - Containerization
+
+---
+
+## 📁 Project Structure
+
+```
+speakly/
+├── backend/
+│   ├── app/
+│   │   ├── routers/        # API endpoints
+│   │   ├── services/       # Business logic (LLM, ElevenLabs)
+│   │   ├── integrations/   # External integrations (TickTick)
+│   │   ├── models.py       # Database models
+│   │   └── config.py       # Configuration
+│   └── tests/              # Test suite
+│
+├── frontend/
+│   └── src/
+│       ├── components/     # React components
+│       └── api.ts          # API client
+│
+├── .env.example            # Environment template
+├── DEPLOY.md               # 🚀 Deployment guide
+└── docker-compose.yml      # Local development
 ```
 
-The backend targets `OLLAMA_BASE_URL` (defaults to `http://ollama:11434`). Make sure the required models are pulled inside the container, for example:
+---
+
+## 🔑 Environment Variables
+
+See [.env.example](.env.example) for all required variables.
+
+**Required:**
+- `GROQ_API_KEY` - Get from https://console.groq.com (FREE!)
+- `CLERK_SECRET_KEY` - Get from https://clerk.com
+- `ELEVENLABS_API_KEY` - Get from https://elevenlabs.io
+
+**Optional:**
+- `TICKTICK_CLIENT_ID` - For TickTick integration
+- `OLLAMA_BASE_URL` - For local LLM development
+
+---
+
+## 💰 Cost Estimate
+
+**FREE for development & small production:**
+- **Groq:** FREE (14.4k requests/day)
+- **Clerk:** FREE (10k users)
+- **Fly.io:** ~$12/month after free tier
+- **ElevenLabs:** Pay-as-you-go
+
+---
+
+## 📚 Documentation
+
+- **[DEPLOY.md](DEPLOY.md)** - Complete production deployment guide
+- **[.env.example](.env.example)** - Environment configuration template
+
+---
+
+## 🎯 What Makes Speakly Different
+
+### AI Quality
+- **DeepSeek R1 Distill 70B** - State-of-the-art reasoning model
+- **Chain-of-thought** processing for better understanding
+- **Context-aware** summaries and task extraction
+
+### User Experience
+- **Bulk upload** - Process many files at once
+- **Real-time progress** - See processing status
+- **Beautiful UI** - Modern, responsive design
+- **Auto-refresh** - Sessions update automatically
+
+### Integration-Ready
+- **TickTick sync** - Tasks automatically added
+- **Webhook support** - ElevenLabs async processing
+- **OAuth flows** - Secure third-party connections
+
+---
+
+## 🧪 Testing
 
 ```bash
-docker compose exec ollama ollama pull llama3
-```
-
-If Ollama is unavailable the backend falls back to lightweight heuristics and marks LLM runs as `error`.
-
-### Optional n8n automation
-
-```bash
-docker compose up --build backend frontend --profile n8n
-```
-
-n8n UI: `http://localhost:5678` (basic auth defaults to `admin/changeme`). Use Speakly APIs to poll for new todos and dispatch them to external task tools.
-
-## Testing
-
-Backend tests (pytest) run inside the Docker image:
-
-```bash
+# Backend tests
 docker compose run --rm --profile test backend-tests
+
+# Or use pytest directly
+cd backend
+pytest tests/ -v
 ```
 
-## Notes
+---
 
-- ElevenLabs metadata is persisted with each transcription. Diarization is toggled via `ELEVENLABS_DIARIZATION_ENABLED`.
-- Default PJ speaker profile is auto-created; adjust `PJ_PROFILE_NAME`/`PJ_VOICE_TAGS` to match your tags or provide custom logic in `speaker_profiles` table.
-- Speaker segments, summaries, and TODOs are all exposed via the session APIs for easy integration with external services.
-- Set `SPEAKLY_DEVELOPER_MODE=true` to bubble backend errors and debug messages directly into API responses and the UI during development.
-- Logs live at `backend/logs/speakly.log` (JSON). Update `SPEAKLY_LOG_LEVEL` for more detail.
+## 🔄 Updating Your Deployment
 
-## Phase 3 follow-up ideas
+```bash
+# Update backend
+flyctl deploy --app speakly-backend
 
-- Wire TODO webhook to TickTick or other task managers via n8n
-- Add real voice embedding comparison for PJ identification
-- Streaming LLM responses & user-triggered Q&A endpoints
+# Update frontend
+cd frontend
+flyctl deploy --app speakly-frontend \
+  --build-arg VITE_CLERK_PUBLISHABLE_KEY="..." \
+  --build-arg VITE_API_BASE_URL="https://speakly-backend.fly.dev"
+```
+
+---
+
+## 🎉 Get Started
+
+**Local:**
+```bash
+docker compose up
+```
+
+**Production:**
+```bash
+# See complete guide
+open DEPLOY.md
+```
+
+---
+
+**Built with ❤️ using modern AI technologies**

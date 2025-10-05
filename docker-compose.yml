@@ -19,10 +19,16 @@ services:
       ELEVENLABS_DIARIZATION_THRESHOLD: ${ELEVENLABS_DIARIZATION_THRESHOLD:-0.22}
       PJ_PROFILE_NAME: ${PJ_PROFILE_NAME:-PJ}
       PJ_VOICE_TAGS: ${PJ_VOICE_TAGS:-pj,patrick}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL_SUMMARY: ${OLLAMA_MODEL_SUMMARY:-llama3}
       OLLAMA_MODEL_TODO: ${OLLAMA_MODEL_TODO:-llama3}
       TODO_CONFIDENCE_THRESHOLD: ${TODO_CONFIDENCE_THRESHOLD:-0.35}
+      SPEAKLY_DEVELOPER_MODE: true
+      TICKTICK_ENABLED: ${TICKTICK_ENABLED:-false}
+      TICKTICK_CLIENT_ID: ${TICKTICK_CLIENT_ID:-}
+      TICKTICK_CLIENT_SECRET: ${TICKTICK_CLIENT_SECRET:-}
+      TICKTICK_REDIRECT_URI: ${TICKTICK_REDIRECT_URI:-http://localhost:8000/api/ticktick/callback}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
     ports:
       - "8000:8000"
 
@@ -46,6 +52,7 @@ services:
     environment:
       VITE_BACKEND_URL_INTERNAL: http://backend:8000
       VITE_API_BASE_URL: proxy
+      VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
     depends_on:
       - backend
     ports:
@@ -63,21 +70,6 @@ services:
       - ollama_data:/root/.ollama
     restart: unless-stopped
     profiles: ["llm"]
-
-  n8n:
-    image: n8nio/n8n:latest
-    ports:
-      - "5678:5678"
-    environment:
-      N8N_HOST: localhost
-      N8N_PORT: 5678
-      N8N_PROTOCOL: http
-      N8N_BASIC_AUTH_ACTIVE: "true"
-      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-admin}
-      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-changeme}
-    depends_on:
-      - backend
-    profiles: ["n8n"]
 
 volumes:
   frontend_node_modules:

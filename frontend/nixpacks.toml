@@ -1,0 +1,14 @@
+# Railway configuration for Speakly Frontend
+# This file tells Railway how to build and serve the frontend
+
+[phases.setup]
+nixPkgs = ["nodejs-18_x"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npx serve -s dist -l 3000"

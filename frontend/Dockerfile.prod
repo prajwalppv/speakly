@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1.5
+# Production Dockerfile for Frontend
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Work around npm optional dependency bug on musl by downgrading npm
+RUN npm install -g npm@9
+
+# Install dependencies with cached npm downloads to speed up rebuilds
+RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline --no-audit --no-fund --verbose
+
+# Copy source code
+COPY . .
+
+# Build arguments for environment variables
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_API_BASE_URL
+
+# Set environment variables for build
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
+# Build for production
+RUN npm run build
+
+# Production stage
+FROM nginx:alpine
+
+# Copy built files to nginx
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

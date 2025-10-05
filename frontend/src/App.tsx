@@ -1,17 +1,228 @@
-import AudioUploader from "./components/AudioUploader";
-import "./App.css";
+import { useState, useEffect } from "react";
+import { useAuth, useUser, UserButton } from "@clerk/clerk-react";
+import { motion } from "framer-motion";
+import BulkUploader from "./components/BulkUploader";
+import SessionsList from "./components/SessionsList";
+import TickTickConnect from "./components/TickTickConnect";
+import CommandPalette from "./components/CommandPalette";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import SignIn from "./components/SignIn";
+import Logo from "./components/Logo";
+import LoadingSpinner from "./components/LoadingSpinner";
+import { FolderOpen, Link2 } from "lucide-react";
+import { fetchSessions, SessionRecord, setAuthToken } from "./api";
+import { cn } from "@/lib/utils";
+
+type Tab = "upload" | "settings";
 
 export default function App() {
+  const { isLoaded, isSignedIn, getToken } = useAuth();
+  const { user } = useUser();
+  const [activeTab, setActiveTab] = useState<Tab>("upload");
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [sessions, setSessions] = useState<SessionRecord[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [targetSessionId, setTargetSessionId] = useState<number | null>(null);
+  const [tokenReady, setTokenReady] = useState(false);
+
+  // Set auth token for API calls (ALL HOOKS MUST BE BEFORE CONDITIONAL RETURNS!)
+  useEffect(() => {
+    if (isSignedIn) {
+      getToken().then((token) => {
+        if (token) {
+          setAuthToken(token);
+          setTokenReady(true);
+        }
+      });
+    } else {
+      setTokenReady(false);
+    }
+  }, [isSignedIn, getToken]);
+
+  // Load sessions for command palette (only when token is ready)
+  useEffect(() => {
+    if (!isSignedIn || !tokenReady) return; // Skip if not signed in or token not ready
+    
+    const loadSessions = async () => {
+      try {
+        const data = await fetchSessions();
+        setSessions(data);
+      } catch (error) {
+        // Failed to load sessions - will show empty state
+      }
+    };
+    loadSessions();
+  }, [refreshTrigger, isSignedIn, tokenReady]);
+
+  // Keyboard shortcut for command palette
+  useEffect(() => {
+    if (!isSignedIn) return; // Skip if not signed in
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSignedIn]);
+
+  // Show loading or sign-in AFTER all hooks
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <LoadingSpinner message="Initializing Speakly..." size="large" />
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <SignIn />;
+  }
+
+  // Show loading while setting up authentication token
+  if (!tokenReady) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <LoadingSpinner message="Setting up your session..." size="large" />
+      </div>
+    );
+  }
+
   return (
-    <main className="layout">
-      <header className="layout__header">
-        <h1>Speakly: Phase 1 Demo</h1>
-        <p>
-          This prototype wires the frontend to the FastAPI backend. Upload an audio file to
-          confirm the hello pipeline works end-to-end.
-        </p>
-      </header>
-      <AudioUploader />
-    </main>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-black">
+        {/* Header */}
+        <motion.header
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="sticky top-0 z-50 backdrop-blur-xl bg-black/80 border-b border-gold/20"
+        >
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              {/* Logo Section */}
+              <div className="flex items-center gap-4">
+                <Logo size="medium" showText={true} />
+                <motion.p
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-sm text-bone-dim font-medium hidden md:block"
+                >
+                  Turn Conversations into Action
+                </motion.p>
+              </div>
+
+              {/* Tab Navigation & User */}
+              <div className="flex items-center gap-4">
+              <nav className="flex gap-2 bg-black-soft/50 p-1 rounded-lg border border-gold/20">
+                <motion.button
+                  onClick={() => setActiveTab("upload")}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
+                    activeTab === "upload"
+                      ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
+                      : "text-bone-dim hover:text-bone hover:bg-black-soft"
+                  )}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  aria-label="Upload Audio"
+                >
+                  <FolderOpen size={18} />
+                  <span>My Audio</span>
+                </motion.button>
+                <motion.button
+                  onClick={() => setActiveTab("settings")}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
+                    activeTab === "settings"
+                      ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
+                      : "text-bone-dim hover:text-bone hover:bg-black-soft"
+                  )}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  aria-label="Integrations & Settings"
+                >
+                  <Link2 size={18} />
+                  <span>Integrations</span>
+                </motion.button>
+              </nav>
+              
+              {/* User Button */}
+              <UserButton
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: "w-10 h-10 border-2 border-gold/30 hover:border-gold",
+                    userButtonPopoverCard: "bg-gradient-to-br from-black-soft to-black border-2 border-gold/30",
+                    userButtonPopoverActionButton: "text-bone hover:bg-gold/10",
+                    userButtonPopoverActionButtonText: "text-bone",
+                    userButtonPopoverActionButtonIcon: "brightness-0 invert",
+                    userButtonPopoverFooter: "hidden",
+                    userPreviewMainIdentifier: "text-bone font-semibold",
+                    userPreviewSecondaryIdentifier: "text-bone-dim",
+                  },
+                }}
+              />
+              </div>
+            </div>
+          </div>
+        </motion.header>
+      
+        {/* Main Content */}
+        <main className="min-h-[calc(100vh-80px)]">
+        {activeTab === "upload" && (
+          <>
+            <BulkUploader 
+              onUploadComplete={() => setRefreshTrigger(prev => prev + 1)} 
+            />
+            <SessionsList 
+              refreshTrigger={refreshTrigger}
+              searchQuery={searchQuery}
+              targetSessionId={targetSessionId}
+              onSearchApplied={() => {
+                setSearchQuery('');
+                setTargetSessionId(null);
+              }}
+            />
+          </>
+        )}
+        {activeTab === "settings" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-4xl mx-auto px-4 py-6"
+          >
+            <TickTickConnect />
+          </motion.div>
+        )}
+      </main>
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        sessions={sessions}
+        onUpload={() => {
+          setActiveTab('upload');
+          // Just navigate to upload tab - user can click the upload area
+        }}
+        onNavigateToSession={(sessionId) => {
+          setActiveTab('upload');
+          setTargetSessionId(sessionId);
+        }}
+        onOpenSettings={() => {
+          setActiveTab('settings');
+        }}
+        onSearch={(query) => {
+          setActiveTab('upload');
+          setSearchQuery(query);
+        }}
+      />
+    </div>
+    </ErrorBoundary>
   );
 }

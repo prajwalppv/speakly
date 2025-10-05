@@ -1,15 +1,74 @@
-:root {
-  color-scheme: light dark;
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background-color: #0b0c10;
-  color: #f8f9fb;
-  min-height: 100vh;
-}
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-body {
-  margin: 0;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-* {
-  box-sizing: border-box;
+@layer base {
+  :root {
+    /* Speakly Color Palette */
+    --color-black: #0a0a0a;
+    --color-black-soft: #141414;
+    --color-gold: #d4af37;
+    --color-gold-bright: #f4d03f;
+    --color-gold-dim: #9a7b2e;
+    --color-green: #2dd4bf;
+    --color-green-bright: #5eead4;
+    --color-green-dim: #14b8a6;
+    --color-blue: #3b82f6;
+    --color-blue-bright: #60a5fa;
+    --color-blue-dim: #2563eb;
+    --color-bone: #e8dcc8;
+    --color-bone-dim: #b8a890;
+    
+    /* Semantic Colors */
+    --color-bg: var(--color-black);
+    --color-bg-elevated: var(--color-black-soft);
+    --color-text: var(--color-bone);
+    --color-text-dim: var(--color-bone-dim);
+    --color-accent: var(--color-gold);
+    --color-success: var(--color-green);
+    --color-primary: var(--color-blue);
+    
+    /* shadcn/ui CSS Variables */
+    --background: 0 0% 4%; /* #0a0a0a */
+    --foreground: 40 25% 85%; /* #e8dcc8 */
+    --card: 0 0% 8%; /* #141414 */
+    --card-foreground: 40 25% 85%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 40 25% 85%;
+    --primary: 217 91% 60%; /* #3b82f6 */
+    --primary-foreground: 40 25% 85%;
+    --secondary: 45 70% 53%; /* #d4af37 */
+    --secondary-foreground: 0 0% 4%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 40 15% 65%;
+    --accent: 45 70% 53%; /* gold */
+    --accent-foreground: 0 0% 4%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 40 25% 85%;
+    --border: 45 40% 40%;
+    --input: 45 40% 40%;
+    --ring: 45 70% 53%;
+    --radius: 0.5rem;
+    
+    /* Typography */
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Space Grotesk', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-black text-bone font-body antialiased;
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.6;
+    min-height: 100vh;
+    background: radial-gradient(ellipse at top, #0f0f12 0%, #0a0a0a 50%, #000000 100%);
+    background-attachment: fixed;
+  }
 }

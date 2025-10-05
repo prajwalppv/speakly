@@ -115,8 +115,18 @@ async def elevenlabs_webhook(
         transcription.status = "completed"
         transcription.text = payload.text
         transcription.error = None
-        session.status = "completed"
+        # Set status to 'processing' not 'completed' - LLM tasks still need to run
+        session.status = "processing"
         session.last_error = None
+        
+        # Update processing stages
+        from datetime import datetime
+        if session.processing_stages:
+            stages = session.processing_stages.copy()
+            stages["transcribing"] = {"status": "completed", "timestamp": datetime.utcnow().isoformat()}
+            if transcription_data and transcription_data.words:
+                stages["diarizing"] = {"status": "completed", "timestamp": datetime.utcnow().isoformat()}
+            session.processing_stages = stages
         session.last_transcribed_at = datetime.utcnow()
     elif normalized_status in {"failed", "error"}:
         transcription.status = "error"
@@ -130,6 +140,26 @@ async def elevenlabs_webhook(
     db.add(transcription)
     db.add(session)
     db.commit()
+    
+    # Delete audio file after successful transcription (privacy + storage savings)
+    if transcription.status == "completed" and session.audio_path:
+        from pathlib import Path
+        try:
+            audio_path = Path(session.audio_path)
+            if audio_path.exists():
+                audio_path.unlink()
+                logger.info(
+                    f"Deleted audio file after transcription: {session.audio_path}",
+                    extra={"extra_data": {"session_id": session.id}}
+                )
+                # Clear the path in database since file is deleted
+                session.audio_path = None
+                db.commit()
+        except Exception as e:
+            logger.warning(
+                f"Failed to delete audio file: {e}",
+                extra={"extra_data": {"session_id": session.id, "path": session.audio_path}}
+            )
 
     logger.info(
         "Processed ElevenLabs webhook",

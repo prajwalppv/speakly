@@ -32,9 +32,17 @@ class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=True)  # Display name from Clerk
+    email = Column(String, nullable=True, unique=True, index=True)  # Email from Clerk
+    clerk_user_id = Column(String, nullable=True, unique=True, index=True)  # Clerk's user ID
+    
+    # Legacy field for backwards compatibility (kept for migration)
+    # Will be removed after all users migrated to Clerk
 
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
+    ticktick_token = relationship(
+        "TickTickToken", back_populates="user", uselist=False, cascade="all, delete-orphan"
+    )
 
 
 class Session(Base, TimestampMixin):
@@ -43,13 +51,14 @@ class Session(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     description = Column(String, nullable=True)
-    audio_path = Column(String, nullable=True)
+    audio_path = Column(String, nullable=True)  # Temporary storage, deleted after transcription
     status = Column(String, nullable=False, default="pending")
     last_error = Column(Text, nullable=True)
     last_transcribed_at = Column(DateTime, nullable=True)
     has_pj = Column(Boolean, default=False, nullable=False)
     summary_run_id = Column(Integer, ForeignKey("llm_runs.id"), nullable=True)
     todo_count = Column(Integer, default=0, nullable=False)
+    processing_stages = Column(JSON, nullable=True)  # Track processing progress
 
     user = relationship("User", back_populates="sessions")
     transcriptions = relationship(
@@ -82,6 +91,12 @@ class Session(Base, TimestampMixin):
         foreign_keys=[summary_run_id],
         post_update=True,
     )
+    session_tags = relationship(
+        "SessionTag",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="SessionTag.created_at",
+    )
 
 
 class Transcription(Base, TimestampMixin):
@@ -109,6 +124,28 @@ class Transcription(Base, TimestampMixin):
         back_populates="transcription",
         foreign_keys="LlmRun.transcription_id",
     )
+    edits = relationship(
+        "TranscriptionEdit",
+        back_populates="transcription",
+        cascade="all, delete-orphan",
+        order_by="TranscriptionEdit.created_at.desc()",
+    )
+
+
+class TranscriptionEdit(Base, TimestampMixin):
+    """Track edit history for transcriptions."""
+    __tablename__ = "transcription_edits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    transcription_id = Column(Integer, ForeignKey("transcriptions.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    previous_text = Column(Text, nullable=False)  # Text before edit
+    new_text = Column(Text, nullable=False)  # Text after edit
+    edit_type = Column(String, nullable=False, default="manual")  # manual, ai_correction, etc.
+    notes = Column(Text, nullable=True)  # Optional notes about the edit
+
+    transcription = relationship("Transcription", back_populates="edits")
+    user = relationship("User")
 
 
 class SpeakerProfile(Base, TimestampMixin):
@@ -166,6 +203,7 @@ class LlmRun(Base, TimestampMixin):
     response = Column(Text, nullable=True)
     status = Column(String, nullable=False, default="pending")
     error = Column(Text, nullable=True)
+    metadata_payload = Column(JSON, nullable=True)
 
     session = relationship(
         "Session",
@@ -193,6 +231,13 @@ class Todo(Base, TimestampMixin):
     source_start_ms = Column(Integer, nullable=True)
     source_end_ms = Column(Integer, nullable=True)
     source_excerpt = Column(Text, nullable=True)
+    
+    # TickTick sync tracking
+    ticktick_task_id = Column(String, nullable=True, unique=True)
+    ticktick_project_id = Column(String, nullable=True)
+    ticktick_synced_at = Column(DateTime, nullable=True)
+    ticktick_sync_status = Column(String, default="pending", nullable=False)  # pending, synced, error
+    ticktick_sync_error = Column(Text, nullable=True)
 
     session = relationship(
         "Session",
@@ -206,6 +251,58 @@ class Todo(Base, TimestampMixin):
     )
 
 
+class TickTickToken(Base, TimestampMixin):
+    """Stores TickTick OAuth tokens for users."""
+    __tablename__ = "ticktick_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    access_token = Column(String, nullable=False)
+    refresh_token = Column(String, nullable=True)
+    token_type = Column(String, default="bearer", nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    scope = Column(String, default="tasks:write tasks:read", nullable=False)
+
+    user = relationship("User", back_populates="ticktick_token")
+
+
+class Tag(Base, TimestampMixin):
+    """Tag model for categorizing sessions."""
+    
+    __tablename__ = "tags"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)  # e.g., "meeting", "urgent"
+    category = Column(String, nullable=False)  # "type", "topic", "person", "priority", "context"
+    color = Column(String, nullable=False)  # Hex color for UI display
+    auto_generated = Column(Boolean, default=True)  # True if created by AI
+    
+    # Relationships
+    session_tags = relationship("SessionTag", back_populates="tag", cascade="all, delete-orphan")
+    
+    def __repr__(self) -> str:
+        return f"<Tag(id={self.id}, name='{self.name}', category='{self.category}')>"
+
+
+class SessionTag(Base, TimestampMixin):
+    """Association table for many-to-many relationship between sessions and tags."""
+    
+    __tablename__ = "session_tags"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False, index=True)
+    confidence = Column(Float, default=1.0)  # 0.0-1.0 confidence score for AI-generated tags
+    auto_generated = Column(Boolean, default=True)  # True if added by AI, False if manual
+    
+    # Relationships
+    session = relationship("Session", back_populates="session_tags")
+    tag = relationship("Tag", back_populates="session_tags")
+    
+    def __repr__(self) -> str:
+        return f"<SessionTag(session_id={self.session_id}, tag_id={self.tag_id}, confidence={self.confidence})>"
+
+
 __all__ = [
     "User",
     "Session",
@@ -214,4 +311,7 @@ __all__ = [
     "SpeakerSegment",
     "LlmRun",
     "Todo",
+    "TickTickToken",
+    "Tag",
+    "SessionTag",
 ]
