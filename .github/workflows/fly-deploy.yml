@@ -34,11 +34,13 @@ jobs:
         run: |
           status=$(flyctl status --app "$FLY_POSTGRES_APP" --json)
           echo "$status" | jq '.'
-          running=$(echo "$status" | jq -r '[.Machines[]?.State == "started"] | all')
-          if [ "$running" != "true" ]; then
-            echo "Postgres not running, starting machines..."
-            flyctl machines list --app "$FLY_POSTGRES_APP"
-            flyctl machines start --app "$FLY_POSTGRES_APP" --all
+          pending=$(echo "$status" | jq -r '.Machines[]? | select(.State != "started") | .ID')
+          if [ -n "$pending" ]; then
+            echo "Postgres machines not running; starting them now..."
+            for id in $pending; do
+              echo "Starting machine $id"
+              flyctl machines start --app "$FLY_POSTGRES_APP" "$id"
+            done
             echo "Waiting for machines to become healthy..."
             flyctl status --app "$FLY_POSTGRES_APP"
           else
@@ -60,6 +62,22 @@ jobs:
 
       - name: Deploy backend app
         run: flyctl deploy --config fly.toml --remote-only --strategy immediate
+
+      - name: Ensure backend machines running
+        run: |
+          status=$(flyctl status --app speakly-backend --json)
+          echo "$status" | jq '.'
+          pending=$(echo "$status" | jq -r '.Machines[]? | select(.State != "started") | .ID')
+          if [ -n "$pending" ]; then
+            echo "Starting backend machines..."
+            for id in $pending; do
+              echo "Starting backend machine $id"
+              flyctl machines start --app speakly-backend "$id"
+            done
+            flyctl status --app speakly-backend
+          else
+            echo "Backend machines already running."
+          fi
 
   deploy-frontend:
     name: Deploy frontend
@@ -84,3 +102,19 @@ jobs:
             --strategy immediate \
             --build-arg VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY \
             --build-arg VITE_API_BASE_URL=$VITE_API_BASE_URL
+
+      - name: Ensure frontend machines running
+        run: |
+          status=$(flyctl status --app speakly-frontend --json)
+          echo "$status" | jq '.'
+          pending=$(echo "$status" | jq -r '.Machines[]? | select(.State != "started") | .ID')
+          if [ -n "$pending" ]; then
+            echo "Starting frontend machines..."
+            for id in $pending; do
+              echo "Starting frontend machine $id"
+              flyctl machines start --app speakly-frontend "$id"
+            done
+            flyctl status --app speakly-frontend
+          else
+            echo "Frontend machines already running."
+          fi
