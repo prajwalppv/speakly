@@ -59,7 +59,7 @@ flyctl auth login
 
 Your key from `.env`:
 ```
-GROQ_API_KEY=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
+GROQ_API_KEY=gsk_********************************
 ```
 
 ✅ **Ready to use!**
@@ -82,10 +82,10 @@ GROQ_API_KEY=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
 
 From your `.env`:
 ```bash
-ELEVENLABS_API_KEY=sk_d33fb14301fee346b6837c56b161a05db6ca7115d06b0e49
-ELEVENLABS_WEBHOOK_SECRET=wsec_76c7bfb9c9d7a78d29c3aa248b0da1eebdc7fd614a6ba93ccd23e277ec7ef12f
-TICKTICK_CLIENT_ID=4fmyNpXY0mK91WsC1x
-TICKTICK_CLIENT_SECRET=911rhLw!(h!Af7Ge2b3m21b+Ry48+RE^
+ELEVENLABS_API_KEY=sk_********************************
+ELEVENLABS_WEBHOOK_SECRET=wsec_********************************
+TICKTICK_CLIENT_ID=********************************
+TICKTICK_CLIENT_SECRET=********************************
 ```
 
 ✅ **Ready to use!**
@@ -146,15 +146,15 @@ flyctl volumes create speakly_audio_storage \
 flyctl secrets set \
   SPEAKLY_ENVIRONMENT=prod \
   SPEAKLY_DATABASE_URL="postgres://postgres:PASSWORD@speakly-db.flycast:5432/speakly" \
-  CLERK_SECRET_KEY="sk_test_YOUR_KEY_OR_LIVE" \
-  ELEVENLABS_API_KEY="sk_d33fb14301fee346b6837c56b161a05db6ca7115d06b0e49" \
-  ELEVENLABS_WEBHOOK_SECRET="wsec_76c7bfb9c9d7a78d29c3aa248b0da1eebdc7fd614a6ba93ccd23e277ec7ef12f" \
+  CLERK_SECRET_KEY="sk_********************************" \
+  ELEVENLABS_API_KEY="sk_********************************" \
+  ELEVENLABS_WEBHOOK_SECRET="wsec_********************************" \
   ELEVENLABS_BASE_URL="https://api.elevenlabs.io" \
   ELEVENLABS_DIARIZATION_ENABLED=true \
-  GROQ_API_KEY="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" \
+  GROQ_API_KEY="gsk_********************************" \
   GROQ_MODEL="deepseek-r1-distill-llama-70b" \
-  TICKTICK_CLIENT_ID="4fmyNpXY0mK91WsC1x" \
-  TICKTICK_CLIENT_SECRET="911rhLw!(h!Af7Ge2b3m21b+Ry48+RE^" \
+  TICKTICK_CLIENT_ID="********************************" \
+  TICKTICK_CLIENT_SECRET="********************************" \
   TICKTICK_REDIRECT_URI="https://speakly-backend.fly.dev/api/ticktick/callback" \
   SPEAKLY_FRONTEND_URL="https://speakly-frontend.fly.dev" \
   --app speakly-backend
@@ -204,7 +204,7 @@ flyctl launch \
 
 ```bash
 flyctl deploy \
-  --build-arg VITE_CLERK_PUBLISHABLE_KEY="pk_test_cm9tYW50aWMtd2VldmlsLTQ0LmNsZXJrLmFjY291bnRzLmRldiQ" \
+  --build-arg VITE_CLERK_PUBLISHABLE_KEY="pk_********************************" \
   --build-arg VITE_API_BASE_URL="https://speakly-backend.fly.dev" \
   --app speakly-frontend
 ```

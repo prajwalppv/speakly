@@ -45,9 +45,11 @@ pnpm-debug.log*
 backend/.env
 frontend/.env
 
-# Local data & media
-backend/app/data/
-backend/app/logs/
-backend/app/storage/
+# Allow checked-in template for env variables
+!.env.example
 
-.env
+# Temporary secret purging files (delete after use)
+.secrets-to-purge.txt
+PURGE_SECRETS_GUIDE.md
+
+# Local data & media
