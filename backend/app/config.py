@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -100,12 +100,15 @@ class Settings(BaseSettings):
         env="SPEAKLY_CORS_ORIGINS",
     )
 
-    # Explicitly disable env_file to prevent it from overriding environment variables
-    # In production, all config comes from environment variables (Fly.io secrets)
-    # In local dev, use docker-compose.yml or export variables manually
-    model_config = {
-        "case_sensitive": False,
-    }
+    # Configuration prioritizes environment variables over .env files
+    # In production: all config from Fly.io secrets (environment variables)
+    # In local dev: use docker-compose.yml or .env file
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
     @property
     def pj_voice_tag_set(self) -> set[str]:
