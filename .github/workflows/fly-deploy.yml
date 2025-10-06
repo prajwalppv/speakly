@@ -20,8 +20,8 @@ jobs:
       ELEVENLABS_BASE_URL: https://api.elevenlabs.io
       ELEVENLABS_WEBHOOK_SECRET: test
       ELEVENLABS_WEBHOOK_ID: test
-      ELEVENLABS_DIARIZATION_ENABLED: "true"
-      ELEVENLABS_DIARIZATION_THRESHOLD: "0.5"
+      ELEVENLABS_DIARIZATION_ENABLED: "false"
+      ELEVENLABS_DIARIZATION_THRESHOLD: "0.4"
       GROQ_API_KEY: test 
       GROQ_MODEL: deepseek-r1-distill-llama-70b
       OLLAMA_BASE_URL: http://localhost:11434

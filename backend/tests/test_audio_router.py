@@ -91,9 +91,12 @@ class TestUploadAudioEndpoint:
         from app.services.elevenlabs import ElevenLabsNotConfiguredError
         
         mock_settings.audio_storage_dir = tmp_path / "audio"
-        mock_settings.developer_mode = True
+        mock_settings.audio_storage_dir.mkdir(parents=True, exist_ok=True)
+        mock_settings.developer_mode = True  # Enable developer mode to get the message
+        mock_settings.elevenlabs_diarization_enabled = False
         
         mock_client = Mock()
+        mock_client.is_configured = False
         mock_client.submit_transcription.side_effect = ElevenLabsNotConfiguredError()
         mock_client_fn.return_value = mock_client
         
@@ -103,7 +106,9 @@ class TestUploadAudioEndpoint:
         assert response.status_code == 201
         data = response.json()
         assert data["transcription_status"] == "pending"
-        assert "not configured" in (data.get("developer_message") or "")
+        # developer_message should be present in developer mode
+        assert data.get("developer_message") is not None
+        assert "not configured" in data["developer_message"]
 
 
 
