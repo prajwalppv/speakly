@@ -60,7 +60,7 @@ class ElevenLabsClient:
             "webhook_url": webhook_url,
             "webhook": "true",
             "model_id": "scribe_v1",
-            "language": "en",
+            "language_code": "en",  # Correct parameter name per ElevenLabs API
         }
         if settings.elevenlabs_diarization_enabled:
             payload["diarize"] = "true"
