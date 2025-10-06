@@ -100,9 +100,11 @@ class Settings(BaseSettings):
         env="SPEAKLY_CORS_ORIGINS",
     )
 
+    # Explicitly disable env_file to prevent it from overriding environment variables
+    # In production, all config comes from environment variables (Fly.io secrets)
+    # In local dev, use docker-compose.yml or export variables manually
     model_config = {
-        "env_file": ".env",
-        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
     }
 
     @property
