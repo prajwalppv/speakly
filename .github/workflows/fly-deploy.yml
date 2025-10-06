@@ -15,7 +15,7 @@ jobs:
       SPEAKLY_DATABASE_URL: sqlite:///./app/data/test.db
       SPEAKLY_AUDIO_DIR: ./app/storage/audio
       SPEAKLY_LOG_LEVEL: INFO
-      SPEAKLY_DEVELOPER_MODE: "false"
+      SPEAKLY_DEVELOPER_MODE: "true"
       ELEVENLABS_API_KEY: test
       ELEVENLABS_BASE_URL: https://api.elevenlabs.io
       ELEVENLABS_WEBHOOK_SECRET: test
