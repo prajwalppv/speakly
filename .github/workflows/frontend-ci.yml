@@ -3,11 +3,21 @@ name: Frontend CI
 on:
   pull_request:
     branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "frontend/**"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/frontend-ci.yml"
+
+# Minimal permissions for this workflow
+permissions:
+  contents: read
+
+# Cancel previous runs for the same PR to save CI minutes
+concurrency:
+  group: frontend-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
