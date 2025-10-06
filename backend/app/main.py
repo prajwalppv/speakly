@@ -87,17 +87,6 @@ def register_routes(app: FastAPI) -> None:
     app.include_router(ticktick_router.router)
     app.include_router(transcriptions_router.router)
     app.include_router(todos_router.router)
-    
-    # Temporary debug endpoint - REMOVE AFTER TESTING
-    @app.get("/api/debug/config")
-    async def debug_config():
-        """Debug endpoint to verify configuration (remove in production)"""
-        return {
-            "frontend_base_url": settings.frontend_base_url,
-            "ticktick_redirect_uri": settings.ticktick_redirect_uri,
-            "environment": settings.environment,
-            "cors_origins": settings.cors_origin_list,
-        }
 
 
 def register_event_handlers(app: FastAPI) -> None:
