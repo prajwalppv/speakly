@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_session
+from ..config import settings
 from ..models import User
 from ..services.ticktick import (
     TickTickAuthError,
@@ -38,7 +39,23 @@ async def connect_ticktick(
         if not state:
             state = f"user_{user_id}"
 
+        logger.debug(
+            "TickTick OAuth step 1: authorizing user",
+            extra={
+                "extra_data": {
+                    "step": 1,
+                    "user_id": user_id,
+                    "state": state,
+                    "redirect_uri": settings.ticktick_redirect_uri,
+                }
+            },
+        )
+
         auth_url = TickTickOAuth.get_authorization_url(state=state)
+        logger.debug(
+            "TickTick OAuth step 1: redirecting to authorization URL",
+            extra={"extra_data": {"step": 1, "auth_url": auth_url}},
+        )
         return RedirectResponse(url=auth_url, status_code=302)
 
     except TickTickNotConfiguredError as e:
@@ -70,31 +87,65 @@ async def ticktick_callback(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
+        logger.debug(
+            "TickTick OAuth step 2: callback received",
+            extra={
+                "extra_data": {
+                    "step": 2,
+                    "code": code,
+                    "state": state,
+                    "resolved_user_id": user_id,
+                }
+            },
+        )
+
         # Exchange code for token
         token_data = await TickTickOAuth.exchange_code_for_token(code)
+
+        logger.debug(
+            "TickTick OAuth step 3: token exchange successful",
+            extra={
+                "extra_data": {
+                    "step": 3,
+                    "token_response_keys": list(token_data.keys()),
+                    "expires_in": token_data.get("expires_in"),
+                }
+            },
+        )
 
         # Save token to database
         TickTickOAuth.save_token(db, user, token_data)
 
+        logger.debug(
+            "TickTick OAuth step 4: token persisted",
+            extra={
+                "extra_data": {
+                    "step": 4,
+                    "user_id": user_id,
+                    "token_scope": token_data.get("scope"),
+                }
+            },
+        )
+
         logger.info(f"Successfully connected TickTick for user {user_id}")
 
         # Redirect to frontend with success message
-        frontend_url = "http://localhost:5173"
+        frontend_url = settings.frontend_base_url.rstrip("/")
         return RedirectResponse(url=f"{frontend_url}/?ticktick=connected", status_code=302)
 
     except TickTickAuthError as e:
         logger.error(f"TickTick auth error: {str(e)}")
         # Redirect to frontend with error
-        frontend_url = "http://localhost:5173"
+        frontend_url = settings.frontend_base_url.rstrip("/")
         return RedirectResponse(url=f"{frontend_url}/?ticktick=error&message={str(e)}", status_code=302)
 
     except TickTickNotConfiguredError as e:
-        frontend_url = "http://localhost:5173"
+        frontend_url = settings.frontend_base_url.rstrip("/")
         return RedirectResponse(url=f"{frontend_url}/?ticktick=error&message={str(e)}", status_code=302)
 
     except Exception as e:
         logger.exception("Unexpected error during TickTick callback")
-        frontend_url = "http://localhost:5173"
+        frontend_url = settings.frontend_base_url.rstrip("/")
         return RedirectResponse(url=f"{frontend_url}/?ticktick=error&message=Connection failed", status_code=302)
 
 

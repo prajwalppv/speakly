@@ -1,13 +1,12 @@
 import axios from "axios";
 
 const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim();
+const RESOLVED_BASE_URL = RAW_BASE_URL && RAW_BASE_URL !== "proxy" ? RAW_BASE_URL : "";
 
 // When RAW_BASE_URL is omitted or set to the sentinel value "proxy", fall back
 // to a relative request so the Vite dev server proxy (or same-origin hosting)
 // forwards calls to the backend.
-const client = axios.create({
-  baseURL: RAW_BASE_URL && RAW_BASE_URL !== "proxy" ? RAW_BASE_URL : ""
-});
+const client = axios.create({ baseURL: RESOLVED_BASE_URL });
 
 // Add request interceptor to include Clerk auth token
 let authToken: string | null = null;
@@ -198,7 +197,9 @@ export async function getTickTickStatus(userId: number = 1): Promise<TickTickSta
 
 export async function connectTickTick(userId: number = 1): Promise<void> {
   // This will redirect the browser to TickTick OAuth
-  window.location.href = `/api/ticktick/connect?user_id=${userId}`;
+  const prefix = RESOLVED_BASE_URL || "";
+  const normalizedPrefix = prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
+  window.location.href = `${normalizedPrefix}/api/ticktick/connect?user_id=${userId}`;
 }
 
 export async function disconnectTickTick(userId: number = 1): Promise<void> {

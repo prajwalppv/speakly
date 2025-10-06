@@ -73,6 +73,10 @@ class Settings(BaseSettings):
         default="https://api.ticktick.com/open/v1",
         env="TICKTICK_BASE_URL"
     )
+    frontend_base_url: str = Field(
+        default="http://localhost:5173",
+        env="SPEAKLY_FRONTEND_URL"
+    )
     
     # Feature Flags (for monetization/rollout control)
     feature_auto_tagging: bool = Field(default=True, env="SPEAKLY_FEATURE_AUTO_TAGGING")

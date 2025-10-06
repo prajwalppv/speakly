@@ -156,6 +156,7 @@ flyctl secrets set \
   TICKTICK_CLIENT_ID="4fmyNpXY0mK91WsC1x" \
   TICKTICK_CLIENT_SECRET="911rhLw!(h!Af7Ge2b3m21b+Ry48+RE^" \
   TICKTICK_REDIRECT_URI="https://speakly-backend.fly.dev/api/ticktick/callback" \
+  SPEAKLY_FRONTEND_URL="https://speakly-frontend.fly.dev" \
   --app speakly-backend
 ```
 
