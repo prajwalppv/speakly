@@ -10,33 +10,37 @@
 
 👉 **[Jump to detailed setup instructions](#-setup-instructions-5-minutes)**
 
+👉 **[Jump to deployment guide](DEPLOYMENT.md)** for release management
+
 ---
 
 ## Overview
 
 Your GitHub Actions CI/CD pipeline automatically:
-1. ✅ **Build and test** backend and frontend on every push to `main`
-2. ✅ **Ensure Postgres DB** is running (`speakly-db`)
-3. ✅ **Deploy backend and frontend in parallel** to Fly.io
+1. ✅ **Triggers** when you create a GitHub release (not on every push)
+2. ✅ **Build and test** backend (484 tests) and frontend
+3. ✅ **Ensure Postgres DB** is running (`speakly-db`)
+4. ✅ **Deploy backend and frontend** with robust health checks
+5. ✅ **Polls machine status** until healthy or timeout (10 mins)
 
-**No manual approval needed** - deploys happen automatically after tests pass!
+**Controlled deployments** - Deploy when YOU create a release!
 
 ## Workflow Structure
 
 ### Workflows Created/Modified
 
-1. **`fly-deploy.yml`** - Main CI/CD pipeline (runs on push to `main`)
+1. **`fly-deploy.yml`** - Main CI/CD pipeline (runs on GitHub release)
 2. **`backend-ci.yml`** - Backend tests (runs only on pull requests)
 3. **`frontend-ci.yml`** - Frontend tests (runs only on pull requests)
 
 ### Pipeline Flow
 
 ```
-Push to main
+Create GitHub Release
     ↓
 ┌───────────────────────────────┐
 │  Build & Test (Parallel)     │
-│  - Backend (pytest)           │
+│  - Backend (484 tests)        │
 │  - Frontend (npm build)       │
 └───────────┬───────────────────┘
             ↓
@@ -49,7 +53,14 @@ Push to main
     │  Deploy (Parallel)   │
     │  - Backend           │
     │  - Frontend          │
-    └──────────────────────┘
+    └──────────┬───────────┘
+               ↓
+    ┌─────────────────────────┐
+    │  Health Checks          │
+    │  - Poll every 15s       │
+    │  - Timeout: 10 mins     │
+    │  - Wait for "started"   │
+    └─────────────────────────┘
 ```
 
 ---
@@ -98,19 +109,25 @@ Add these **2 secrets**:
 
 ### ✅ Setup Complete!
 
-Your CI/CD pipeline is now ready. Every push to `main` will automatically:
+Your CI/CD pipeline is now ready. When you create a GitHub release:
 - Build and test your code
 - Deploy to Fly.io if tests pass
+- Wait for all machines to be healthy (with 10-min timeout)
+
+**See [DEPLOYMENT.md](DEPLOYMENT.md) for how to create releases and deploy!**
 
 ## How It Works
 
-### On Push to Main
+### On GitHub Release
+
+**Trigger**: When you publish a release on GitHub (e.g., `v1.0.0`)
 
 1. **Backend Build & Test**
    - Sets up Python 3.11
    - Installs dependencies from `backend/requirements-dev.txt`
-   - Runs pytest suite
+   - Runs full pytest suite (484 tests)
    - Uses SQLite for testing (no external dependencies)
+   - 73% code coverage enforced
 
 2. **Frontend Build & Test**
    - Sets up Node.js 20
@@ -126,19 +143,29 @@ Your CI/CD pipeline is now ready. Every push to `main` will automatically:
 4. **Deploy Backend**
    - Deploys to `speakly-backend` app
    - Uses `fly.toml` configuration
-   - Verifies machines are running after deployment
+   - **NEW**: Robust polling mechanism (10 min timeout)
+     - Polls every 15 seconds
+     - Tracks state transitions: `replacing` → `starting` → `started`
+     - Auto-starts stopped machines
+     - Fails gracefully with clear errors
 
 5. **Deploy Frontend** (runs in parallel with backend)
    - Deploys to `speakly-frontend` app
    - Uses `frontend/fly.toml` configuration
    - Passes build args for Clerk and API URL
-   - Verifies machines are running after deployment
+   - **NEW**: Same robust health checks as backend
 
 ### On Pull Requests
 
 - `backend-ci.yml` runs backend tests only
 - `frontend-ci.yml` runs frontend build only
 - No deployment occurs
+
+### Manual Trigger
+
+You can also trigger manually:
+- Via GitHub Actions UI: "Run workflow" button
+- Via CLI: `gh workflow run "CI/CD Pipeline"`
 
 ## Flyctl Commands Used
 
@@ -172,23 +199,34 @@ flyctl deploy \
 
 ## Testing the Pipeline
 
-### Manual Test
+### Method 1: Create a Test Release
 ```bash
-# Trigger workflow manually
-gh workflow run "CI/CD Pipeline"
+# Create and publish a test release
+gh release create v0.0.1-test \
+  --title "Test Release" \
+  --notes "Testing CI/CD pipeline" \
+  --prerelease
+
+# Watch the workflow
+gh run watch
 ```
 
-### Automatic Test
-1. Make a change to any file
-2. Commit and push to `main`:
-   ```bash
-   git add .
-   git commit -m "Test CI/CD pipeline"
-   git push origin main
-   ```
-3. Go to **Actions** tab in GitHub
-4. Watch the workflow run
-5. Approve deployment when prompted
+### Method 2: Manual Workflow Trigger
+```bash
+# Trigger workflow manually (bypass release requirement)
+gh workflow run "CI/CD Pipeline"
+
+# Watch it run
+gh run watch
+```
+
+### Method 3: Via GitHub UI
+1. Go to your repository on GitHub
+2. Click **Releases** → **Draft a new release**
+3. Create a new tag (e.g., `v0.0.1-test`)
+4. Mark as "pre-release" if testing
+5. Click **Publish release**
+6. Go to **Actions** tab to watch the workflow
 
 ## Monitoring Deployments
 
@@ -221,44 +259,46 @@ gh workflow run "CI/CD Pipeline"
 
 ## Testing Your Pipeline
 
-### Quick Test
-
-Make a small change and push to `main`:
+### Quick Test: Create a Test Release
 
 ```bash
-# Make a small change (e.g., add a comment to README)
-echo "# Testing CI/CD" >> README.md
+# Create a pre-release for testing
+gh release create v0.0.1-test \
+  --title "Test Release v0.0.1" \
+  --notes "Testing the CI/CD pipeline" \
+  --prerelease
 
-# Commit and push
-git add README.md
-git commit -m "Test CI/CD pipeline"
-git push origin main
+# Watch it run in real-time
+gh run watch
+
+# Or view logs after completion
+gh run view --log
 ```
-
-Then watch it run:
-1. Go to your GitHub repository
-2. Click **Actions** tab
-3. Watch the "CI/CD Pipeline" workflow run
-4. See each step execute (build → test → deploy)
 
 ### Monitor the Deployment
 
 ```bash
-# Watch backend logs
+# Watch backend logs during deployment
 flyctl logs --app speakly-backend -f
 
-# Check status
+# Check deployment status with detailed machine states
 flyctl status --app speakly-backend
 flyctl status --app speakly-frontend
+
+# Verify all machines are "started"
+flyctl status --app speakly-backend --json | jq '.Machines[] | {id, state}'
 ```
 
 ---
 
 ## Summary
 
-✅ **Automatic deployments** on every push to `main`  
-✅ **Tests run first** - deployment only happens if tests pass  
+✅ **Release-triggered deployments** - deploy when YOU create a release  
+✅ **484 tests enforced** - deployment only happens if all tests pass  
+✅ **Robust health checks** - polls machine status for 10 mins until healthy  
 ✅ **Parallel deployments** - backend and frontend deploy simultaneously  
-✅ **No manual approval needed** - perfect for personal projects
+✅ **Auto-recovery** - automatically starts stopped machines  
+✅ **Graceful failures** - clear error messages with timeout handling
 
+**Need to deploy?** See [DEPLOYMENT.md](DEPLOYMENT.md) for release management guide  
 **Questions?** Review the workflow file at `.github/workflows/fly-deploy.yml`

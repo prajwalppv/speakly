@@ -1,8 +1,8 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [ main ]
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -162,22 +162,60 @@ jobs:
 
       - name: Verify backend deployment
         run: |
-          echo "Checking backend deployment status..."
-          flyctl status --app speakly-backend
+          echo "Waiting for backend machines to become healthy..."
           
-          # Check if machines are running
-          status=$(flyctl status --app speakly-backend --json)
-          stopped_machines=$(echo "$status" | jq -r '.Machines[]? | select(.state != "started") | .id' 2>/dev/null || echo "")
+          TIMEOUT=600  # 10 minutes in seconds
+          POLL_INTERVAL=15
+          ELAPSED=0
+          APP_NAME="speakly-backend"
           
-          if [ -n "$stopped_machines" ]; then
-            echo "Starting stopped backend machines..."
-            for machine_id in $stopped_machines; do
-              echo "Starting machine: $machine_id"
-              flyctl machine start "$machine_id" --app speakly-backend
-            done
-          fi
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            echo "Checking status (${ELAPSED}s elapsed)..."
+            
+            status=$(flyctl status --app $APP_NAME --json 2>&1 || echo '{"error": true}')
+            
+            if echo "$status" | jq -e '.error' > /dev/null 2>&1; then
+              echo "Error fetching status. Retrying..."
+              sleep $POLL_INTERVAL
+              ELAPSED=$((ELAPSED + POLL_INTERVAL))
+              continue
+            fi
+            
+            # Count machines by state
+            total=$(echo "$status" | jq -r '.Machines | length')
+            started=$(echo "$status" | jq -r '[.Machines[] | select(.state == "started")] | length')
+            stopped=$(echo "$status" | jq -r '[.Machines[] | select(.state == "stopped")] | length')
+            replacing=$(echo "$status" | jq -r '[.Machines[] | select(.state == "replacing")] | length')
+            starting=$(echo "$status" | jq -r '[.Machines[] | select(.state == "starting")] | length')
+            
+            echo "  Total: $total | Started: $started | Starting: $starting | Replacing: $replacing | Stopped: $stopped"
+            
+            # Start any stopped machines
+            if [ "$stopped" -gt 0 ]; then
+              echo "Found stopped machines, starting them..."
+              stopped_ids=$(echo "$status" | jq -r '.Machines[] | select(.state == "stopped") | .id')
+              for machine_id in $stopped_ids; do
+                echo "  Starting machine: $machine_id"
+                flyctl machine start "$machine_id" --app $APP_NAME || true
+              done
+            fi
+            
+            # Check if all machines are started
+            if [ "$started" -eq "$total" ] && [ "$total" -gt 0 ]; then
+              echo "✅ All $total backend machines are running!"
+              flyctl status --app $APP_NAME
+              exit 0
+            fi
+            
+            # Still transitioning, wait and retry
+            echo "  Machines still transitioning. Waiting ${POLL_INTERVAL}s..."
+            sleep $POLL_INTERVAL
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
           
-          echo "Backend deployment complete!"
+          echo "❌ Timeout after ${TIMEOUT}s waiting for backend machines to start"
+          flyctl status --app $APP_NAME
+          exit 1
 
   deploy-frontend:
     name: Deploy frontend to Fly.io
@@ -206,19 +244,57 @@ jobs:
 
       - name: Verify frontend deployment
         run: |
-          echo "Checking frontend deployment status..."
-          flyctl status --app speakly-frontend
+          echo "Waiting for frontend machines to become healthy..."
           
-          # Check if machines are running
-          status=$(flyctl status --app speakly-frontend --json)
-          stopped_machines=$(echo "$status" | jq -r '.Machines[]? | select(.state != "started") | .id' 2>/dev/null || echo "")
+          TIMEOUT=600  # 10 minutes in seconds
+          POLL_INTERVAL=15
+          ELAPSED=0
+          APP_NAME="speakly-frontend"
           
-          if [ -n "$stopped_machines" ]; then
-            echo "Starting stopped frontend machines..."
-            for machine_id in $stopped_machines; do
-              echo "Starting machine: $machine_id"
-              flyctl machine start "$machine_id" --app speakly-frontend
-            done
-          fi
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            echo "Checking status (${ELAPSED}s elapsed)..."
+            
+            status=$(flyctl status --app $APP_NAME --json 2>&1 || echo '{"error": true}')
+            
+            if echo "$status" | jq -e '.error' > /dev/null 2>&1; then
+              echo "Error fetching status. Retrying..."
+              sleep $POLL_INTERVAL
+              ELAPSED=$((ELAPSED + POLL_INTERVAL))
+              continue
+            fi
+            
+            # Count machines by state
+            total=$(echo "$status" | jq -r '.Machines | length')
+            started=$(echo "$status" | jq -r '[.Machines[] | select(.state == "started")] | length')
+            stopped=$(echo "$status" | jq -r '[.Machines[] | select(.state == "stopped")] | length')
+            replacing=$(echo "$status" | jq -r '[.Machines[] | select(.state == "replacing")] | length')
+            starting=$(echo "$status" | jq -r '[.Machines[] | select(.state == "starting")] | length')
+            
+            echo "  Total: $total | Started: $started | Starting: $starting | Replacing: $replacing | Stopped: $stopped"
+            
+            # Start any stopped machines
+            if [ "$stopped" -gt 0 ]; then
+              echo "Found stopped machines, starting them..."
+              stopped_ids=$(echo "$status" | jq -r '.Machines[] | select(.state == "stopped") | .id')
+              for machine_id in $stopped_ids; do
+                echo "  Starting machine: $machine_id"
+                flyctl machine start "$machine_id" --app $APP_NAME || true
+              done
+            fi
+            
+            # Check if all machines are started
+            if [ "$started" -eq "$total" ] && [ "$total" -gt 0 ]; then
+              echo "✅ All $total frontend machines are running!"
+              flyctl status --app $APP_NAME
+              exit 0
+            fi
+            
+            # Still transitioning, wait and retry
+            echo "  Machines still transitioning. Waiting ${POLL_INTERVAL}s..."
+            sleep $POLL_INTERVAL
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
           
-          echo "Frontend deployment complete!"
+          echo "❌ Timeout after ${TIMEOUT}s waiting for frontend machines to start"
+          flyctl status --app $APP_NAME
+          exit 1
