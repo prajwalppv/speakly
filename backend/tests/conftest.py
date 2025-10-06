@@ -67,8 +67,10 @@ def test_db() -> Generator[Session, None, None]:
 @pytest.fixture(scope="function")
 def client(test_db: Session):
     """Create a FastAPI test client with test database."""
+    from unittest.mock import Mock
     from app.main import create_app
     from app.auth import get_current_user
+    from app.services import get_elevenlabs_client, ElevenLabsClient
     
     # Create a fresh app instance  
     app = create_app()
@@ -86,9 +88,23 @@ def client(test_db: Session):
         """Return the default test user for all authenticated requests."""
         return default_user
     
+    # Override ElevenLabs client to return a mock that never makes real API calls
+    def override_get_elevenlabs_client() -> ElevenLabsClient:
+        """Return a mock ElevenLabs client for testing."""
+        import uuid
+        mock_client = Mock(spec=ElevenLabsClient)
+        mock_client.is_configured = True
+        # Use a lambda to generate unique IDs for each call
+        mock_client.submit_transcription.side_effect = lambda **kwargs: {
+            "request_id": f"test-mock-{uuid.uuid4().hex[:16]}",
+            "transcription_id": f"test-mock-trans-{uuid.uuid4().hex[:16]}",
+        }
+        return mock_client
+    
     # Apply the overrides
     app.dependency_overrides[get_session] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
+    app.dependency_overrides[get_elevenlabs_client] = override_get_elevenlabs_client
     
     # Clear startup event handlers to prevent init_database() from running
     # (which would try to use production DB instead of test DB)
