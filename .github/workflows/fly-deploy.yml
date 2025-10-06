@@ -1,54 +1,146 @@
-name: Deploy to Fly.io
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [ main ]
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - "fly.toml"
-      - "frontend/fly.toml"
-      - "deploy-production.sh"
-      - ".github/workflows/fly-deploy.yml"
   workflow_dispatch:
 
 jobs:
+  build-backend:
+    name: Build and test backend
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}/backend
+      SPEAKLY_ENVIRONMENT: test
+      SPEAKLY_DATABASE_URL: sqlite:///./app/data/test.db
+      SPEAKLY_AUDIO_DIR: ./app/storage/audio
+      SPEAKLY_LOG_LEVEL: INFO
+      SPEAKLY_DEVELOPER_MODE: "false"
+      ELEVENLABS_API_KEY: test
+      ELEVENLABS_BASE_URL: https://api.elevenlabs.io
+      ELEVENLABS_WEBHOOK_SECRET: test
+      ELEVENLABS_WEBHOOK_ID: test
+      ELEVENLABS_DIARIZATION_ENABLED: "true"
+      ELEVENLABS_DIARIZATION_THRESHOLD: "0.5"
+      GROQ_API_KEY: test 
+      GROQ_MODEL: deepseek-r1-distill-llama-70b
+      OLLAMA_BASE_URL: http://localhost:11434
+      OLLAMA_MODEL_SUMMARY: llama3
+      OLLAMA_MODEL_TODO: llama3
+      TICKTICK_ENABLED: "false"
+      TICKTICK_CLIENT_ID: test
+      TICKTICK_CLIENT_SECRET: test
+      TICKTICK_REDIRECT_URI: http://localhost:8000/api/ticktick/callback
+      TICKTICK_BASE_URL: https://api.ticktick.com/open/v1
+      SPEAKLY_FEATURE_AUTO_TAGGING: "true"
+      SPEAKLY_FEATURE_CUSTOM_TAGS: "true"
+      SPEAKLY_FEATURE_ADVANCED_SEARCH: "true"
+      SPEAKLY_FEATURE_REPORT_GENERATION: "false"
+      SPEAKLY_FEATURE_COMMAND_PALETTE: "true"
+      SPEAKLY_MAX_TAGS_PER_SESSION: "5"
+      SPEAKLY_FREE_RECORDINGS_PER_MONTH: "10"
+      SPEAKLY_FREE_TASKS_PER_SESSION: "3"
+      SPEAKLY_FREE_TAGS_PER_SESSION: "3"
+      PJ_PROFILE_NAME: PJ
+      PJ_VOICE_TAGS: pj,patrick
+      TODO_CONFIDENCE_THRESHOLD: "0.35"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Prepare runtime directories
+        run: |
+          mkdir -p app/data
+          mkdir -p app/logs
+          mkdir -p app/storage/audio
+
+      - name: Run pytest suite
+        run: pytest
+
+  build-frontend:
+    name: Build and test frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      CI: "true"
+      VITE_CLERK_PUBLISHABLE_KEY: pk_test_dummy
+      VITE_API_BASE_URL: http://localhost:8000
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Build project
+        run: npm run build
+
   ensure-postgres:
-    name: Ensure Postgres app is running
+    name: Ensure Postgres DB is running
+    needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      FLY_POSTGRES_APP: ${{ vars.FLY_POSTGRES_APP }}
     steps:
-      - name: Check Postgres app name
-        run: |
-          if [ -z "$FLY_POSTGRES_APP" ]; then
-            echo "FLY_POSTGRES_APP variable is not set. Configure it in repo variables." >&2
-            exit 1
-          fi
-
-      - name: Verify Postgres app status
+      - name: Setup Flyctl
         uses: superfly/flyctl-actions/setup-flyctl@v1
 
-      - name: Start Postgres machine if needed
+      - name: Check and start Postgres machine
         run: |
-          status=$(flyctl status --app "$FLY_POSTGRES_APP" --json)
+          echo "Checking Postgres database status..."
+          status=$(flyctl status --app speakly-db --json 2>&1 || echo '{"error": true}')
+          
+          if echo "$status" | jq -e '.error' > /dev/null 2>&1; then
+            echo "Error fetching status. App may not exist or API token invalid."
+            exit 1
+          fi
+          
+          echo "Current status:"
           echo "$status" | jq '.'
-          pending=$(echo "$status" | jq -r '.Machines[]? | select(.State != "started") | .ID')
-          if [ -n "$pending" ]; then
-            echo "Postgres machines not running; starting them now..."
-            for id in $pending; do
-              echo "Starting machine $id"
-              flyctl machines start --app "$FLY_POSTGRES_APP" "$id"
+          
+          # Find machines that are not started
+          stopped_machines=$(echo "$status" | jq -r '.Machines[]? | select(.state != "started") | .id' 2>/dev/null || echo "")
+          
+          if [ -n "$stopped_machines" ]; then
+            echo "Found stopped machines. Starting them..."
+            for machine_id in $stopped_machines; do
+              echo "Starting machine: $machine_id"
+              flyctl machine start "$machine_id" --app speakly-db
             done
-            echo "Waiting for machines to become healthy..."
-            flyctl status --app "$FLY_POSTGRES_APP"
+            
+            echo "Waiting for machines to be healthy..."
+            sleep 10
+            flyctl status --app speakly-db
           else
-            echo "Postgres machines already running."
+            echo "All Postgres machines are already running."
           fi
 
   deploy-backend:
-    name: Deploy backend
+    name: Deploy backend to Fly.io
     needs: ensure-postgres
     runs-on: ubuntu-latest
     env:
@@ -57,31 +149,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Flyctl
+      - name: Setup Flyctl
         uses: superfly/flyctl-actions/setup-flyctl@v1
 
-      - name: Deploy backend app
-        run: flyctl deploy --config fly.toml --remote-only --strategy immediate
-
-      - name: Ensure backend machines running
+      - name: Deploy backend
         run: |
+          flyctl deploy \
+            --app speakly-backend \
+            --config fly.toml \
+            --remote-only \
+            --strategy immediate
+
+      - name: Verify backend deployment
+        run: |
+          echo "Checking backend deployment status..."
+          flyctl status --app speakly-backend
+          
+          # Check if machines are running
           status=$(flyctl status --app speakly-backend --json)
-          echo "$status" | jq '.'
-          pending=$(echo "$status" | jq -r '.Machines[]? | select(.State != "started") | .ID')
-          if [ -n "$pending" ]; then
-            echo "Starting backend machines..."
-            for id in $pending; do
-              echo "Starting backend machine $id"
-              flyctl machines start --app speakly-backend "$id"
+          stopped_machines=$(echo "$status" | jq -r '.Machines[]? | select(.state != "started") | .id' 2>/dev/null || echo "")
+          
+          if [ -n "$stopped_machines" ]; then
+            echo "Starting stopped backend machines..."
+            for machine_id in $stopped_machines; do
+              echo "Starting machine: $machine_id"
+              flyctl machine start "$machine_id" --app speakly-backend
             done
-            flyctl status --app speakly-backend
-          else
-            echo "Backend machines already running."
           fi
+          
+          echo "Backend deployment complete!"
 
   deploy-frontend:
-    name: Deploy frontend
-    needs: deploy-backend
+    name: Deploy frontend to Fly.io
+    needs: ensure-postgres
     runs-on: ubuntu-latest
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
@@ -91,30 +191,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Flyctl
+      - name: Setup Flyctl
         uses: superfly/flyctl-actions/setup-flyctl@v1
 
-      - name: Deploy frontend app
+      - name: Deploy frontend
         run: |
           flyctl deploy \
+            --app speakly-frontend \
             --config frontend/fly.toml \
             --remote-only \
             --strategy immediate \
-            --build-arg VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY \
-            --build-arg VITE_API_BASE_URL=$VITE_API_BASE_URL
+            --build-arg VITE_CLERK_PUBLISHABLE_KEY="${VITE_CLERK_PUBLISHABLE_KEY}" \
+            --build-arg VITE_API_BASE_URL="${VITE_API_BASE_URL}"
 
-      - name: Ensure frontend machines running
+      - name: Verify frontend deployment
         run: |
+          echo "Checking frontend deployment status..."
+          flyctl status --app speakly-frontend
+          
+          # Check if machines are running
           status=$(flyctl status --app speakly-frontend --json)
-          echo "$status" | jq '.'
-          pending=$(echo "$status" | jq -r '.Machines[]? | select(.State != "started") | .ID')
-          if [ -n "$pending" ]; then
-            echo "Starting frontend machines..."
-            for id in $pending; do
-              echo "Starting frontend machine $id"
-              flyctl machines start --app speakly-frontend "$id"
+          stopped_machines=$(echo "$status" | jq -r '.Machines[]? | select(.state != "started") | .id' 2>/dev/null || echo "")
+          
+          if [ -n "$stopped_machines" ]; then
+            echo "Starting stopped frontend machines..."
+            for machine_id in $stopped_machines; do
+              echo "Starting machine: $machine_id"
+              flyctl machine start "$machine_id" --app speakly-frontend
             done
-            flyctl status --app speakly-frontend
-          else
-            echo "Frontend machines already running."
           fi
+          
+          echo "Frontend deployment complete!"
