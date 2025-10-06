@@ -16,7 +16,11 @@ class TestAudioDeletion:
     def test_audio_deleted_after_webhook_success(self, client, test_db, tmp_path):
         """Test that audio file is deleted after successful transcription webhook."""
         # Create user and session with audio file
-        user = User(name="deletion_test")
+        user = User(
+            name="deletion_test",
+            email="deletion@test.com",
+            clerk_user_id="deletion_clerk_123"
+        )
         test_db.add(user)
         test_db.commit()
         
@@ -48,9 +52,15 @@ class TestAudioDeletion:
             mock_settings.elevenlabs_webhook_secret = None
             
             payload = {
-                "task_id": "test-job-123",
-                "status": "completed",
-                "text": "Test transcription"
+                "type": "transcription.completed",
+                "data": {
+                    "request_id": "test-job-123",
+                    "transcription": {
+                        "transcription_id": "test-job-123",
+                        "status": "completed",
+                        "text": "Test transcription"
+                    }
+                }
             }
             
             response = client.post(
@@ -75,7 +85,11 @@ class TestAudioDeletion:
 
     def test_audio_not_deleted_on_failed_transcription(self, client, test_db, tmp_path):
         """Test that audio file is NOT deleted if transcription fails."""
-        user = User(name="fail_test")
+        user = User(
+            name="fail_test",
+            email="fail@test.com",
+            clerk_user_id="fail_clerk_123"
+        )
         test_db.add(user)
         test_db.commit()
         
@@ -103,9 +117,15 @@ class TestAudioDeletion:
             mock_settings.elevenlabs_webhook_secret = None
             
             payload = {
-                "task_id": "fail-job-123",
-                "status": "failed",
-                "text": "Transcription failed"
+                "type": "transcription.failed",
+                "data": {
+                    "request_id": "fail-job-123",
+                    "transcription": {
+                        "transcription_id": "fail-job-123",
+                        "status": "failed",
+                        "text": "Transcription failed"
+                    }
+                }
             }
             
             response = client.post(
@@ -125,7 +145,11 @@ class TestAudioDeletion:
 
     def test_graceful_handling_if_file_already_deleted(self, client, test_db, tmp_path):
         """Test that webhook handles case where file is already deleted."""
-        user = User(name="missing_file_test")
+        user = User(
+            name="missing_file_test",
+            email="missing@test.com",
+            clerk_user_id="missing_clerk_123"
+        )
         test_db.add(user)
         test_db.commit()
         
@@ -151,9 +175,15 @@ class TestAudioDeletion:
             mock_settings.elevenlabs_webhook_secret = None
             
             payload = {
-                "task_id": "missing-job-123",
-                "status": "completed",
-                "text": "Test"
+                "type": "transcription.completed",
+                "data": {
+                    "request_id": "missing-job-123",
+                    "transcription": {
+                        "transcription_id": "missing-job-123",
+                        "status": "completed",
+                        "text": "Test"
+                    }
+                }
             }
             
             response = client.post(

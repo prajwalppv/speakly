@@ -173,16 +173,24 @@ class TestDatabaseConstraints:
     """Test database constraints and validations."""
 
     def test_unique_user_name_constraint(self, test_db):
-        """Test that user names must be unique."""
+        """Test that clerk_user_id must be unique (not name)."""
         from app.models import User
         from sqlalchemy.exc import IntegrityError
         
-        user1 = User(name="unique_test")
+        user1 = User(
+            name="unique_test",
+            email="test1@test.com",
+            clerk_user_id="clerk_123"
+        )
         test_db.add(user1)
         test_db.commit()
         
-        # Try to add another user with same name
-        user2 = User(name="unique_test")
+        # Try to add another user with same clerk_user_id (should fail)
+        user2 = User(
+            name="different_name",
+            email="test2@test.com",
+            clerk_user_id="clerk_123"
+        )
         test_db.add(user2)
         
         with pytest.raises(IntegrityError):

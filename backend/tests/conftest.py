@@ -47,7 +47,11 @@ def test_db() -> Generator[Session, None, None]:
     db = TestSessionLocal()
     
     # Create default user (required by audio upload endpoint)
-    default_user = User(name="default")
+    default_user = User(
+        name="default",
+        email="test@test.com",
+        clerk_user_id="test_clerk_user_123"
+    )
     db.add(default_user)
     db.commit()
     
@@ -64,17 +68,27 @@ def test_db() -> Generator[Session, None, None]:
 def client(test_db: Session):
     """Create a FastAPI test client with test database."""
     from app.main import create_app
+    from app.auth import get_current_user
     
     # Create a fresh app instance  
     app = create_app()
+    
+    # Get the default test user from the database
+    default_user = test_db.query(User).filter(User.name == "default").first()
     
     # Override the database dependency - it needs to yield since get_session is a generator
     def override_get_db():
         """Yield the test database session."""
         yield test_db
     
-    # Apply the override
+    # Override authentication to return the default test user
+    async def override_get_current_user():
+        """Return the default test user for all authenticated requests."""
+        return default_user
+    
+    # Apply the overrides
     app.dependency_overrides[get_session] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
     
     # Clear startup event handlers to prevent init_database() from running
     # (which would try to use production DB instead of test DB)

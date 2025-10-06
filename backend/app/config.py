@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -99,9 +100,10 @@ class Settings(BaseSettings):
         env="SPEAKLY_CORS_ORIGINS",
     )
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+    }
 
     @property
     def pj_voice_tag_set(self) -> set[str]:

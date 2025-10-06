@@ -87,16 +87,16 @@ class TaskUpdateInfo(BaseModel):
 class TodoResponse(UTCBaseModel):
     id: int
     title: str
-    due_hint: str | None
-    confidence: float | None
+    due_hint: str | None = None
+    confidence: float | None = None
     status: str
-    source_start_ms: int | None
-    source_end_ms: int | None
-    source_excerpt: str | None
-    ticktick_sync_status: str
-    ticktick_task_id: str | None
-    ticktick_synced_at: datetime | None
-    ticktick_sync_error: str | None
+    source_start_ms: int | None = None
+    source_end_ms: int | None = None
+    source_excerpt: str | None = None
+    ticktick_sync_status: str = "pending"
+    ticktick_task_id: str | None = None
+    ticktick_synced_at: datetime | None = None
+    ticktick_sync_error: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -120,8 +120,7 @@ class TagResponse(UTCBaseModel):
     usage_count: int = 0
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TagCreate(BaseModel):
@@ -150,8 +149,7 @@ class SessionResponse(UTCBaseModel):
     todos: list[TodoResponse]
     tags: list[TagResponse] = []
     
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ElevenLabsWebhookTranscription(BaseModel):

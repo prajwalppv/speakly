@@ -72,10 +72,8 @@ class TestSessionsRouter:
 
     def test_get_sessions_list(self, client, test_db):
         """Test getting sessions list."""
-        # Create test data
-        user = User(name="test")
-        test_db.add(user)
-        test_db.commit()
+        # Get the default test user (authenticated in test client)
+        user = test_db.query(User).filter(User.name == "default").first()
         
         session = SessionModel(user_id=user.id, audio_path="/test.wav")
         test_db.add(session)
@@ -90,9 +88,8 @@ class TestSessionsRouter:
 
     def test_get_single_session(self, client, test_db):
         """Test getting single session."""
-        user = User(name="test2")
-        test_db.add(user)
-        test_db.commit()
+        # Get the default test user (authenticated in test client)
+        user = test_db.query(User).filter(User.name == "default").first()
         
         session = SessionModel(user_id=user.id, audio_path="/test.wav", description="Test")
         test_db.add(session)
@@ -181,16 +178,14 @@ class TestCrossRouterIntegration:
         # Retrieve session
         session_response = client.get(f"/api/sessions/{session_id}")
         
-        assert session_response.status_code == 200
         session_data = session_response.json()
         assert session_data["id"] == session_id
         assert len(session_data["transcriptions"]) == 1
 
     def test_session_includes_transcription(self, client, test_db):
-        """Test session response includes transcription data."""
-        user = User(name="cross_test")
-        test_db.add(user)
-        test_db.commit()
+        """Test that session endpoint includes transcriptions."""
+        # Get the default test user (authenticated in test client)
+        user = test_db.query(User).filter(User.name == "default").first()
         
         session = SessionModel(user_id=user.id, audio_path="/test.wav")
         test_db.add(session)

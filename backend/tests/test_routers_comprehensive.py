@@ -161,9 +161,8 @@ class TestSessionsRouterComprehensive:
 
     def test_get_single_session_with_relations(self, client, test_db):
         """Test session includes all related data."""
-        user = User(name="relations_test")
-        test_db.add(user)
-        test_db.commit()
+        # Get the default test user (authenticated in test client)
+        user = test_db.query(User).filter(User.name == "default").first()
         
         session = SessionModel(
             user_id=user.id,
@@ -462,9 +461,8 @@ class TestConcurrentRequests:
 
     def test_concurrent_session_reads(self, client, test_db):
         """Test multiple concurrent session reads are safe."""
-        user = User(name="concurrent")
-        test_db.add(user)
-        test_db.commit()
+        # Get the default test user (authenticated in test client)
+        user = test_db.query(User).filter(User.name == "default").first()
         
         session = SessionModel(user_id=user.id, audio_path="/test.wav")
         test_db.add(session)
