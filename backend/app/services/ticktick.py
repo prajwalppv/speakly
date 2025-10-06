@@ -559,11 +559,15 @@ class TickTickOAuth:
                 return response.json()
 
             except httpx.HTTPStatusError as e:
-                logger.error(f"TickTick OAuth error: {e.response.status_code} - {e.response.text}")
+                logger.error(
+                    "TickTick OAuth error: %s - %s",
+                    e.response.status_code,
+                    e.response.text,
+                )
                 raise TickTickAuthError(f"Token exchange failed: {e.response.text}") from e
 
             except httpx.RequestError as e:
-                logger.error(f"TickTick OAuth request error: {str(e)}")
+                logger.error("TickTick OAuth request error: %s", str(e))
                 raise TickTickAuthError(f"Failed to connect to TickTick: {str(e)}") from e
 
     @staticmethod
