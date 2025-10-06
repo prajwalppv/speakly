@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from ..auth import get_current_user
 from ..database import get_session
 from ..config import settings
 from ..models import User
@@ -24,23 +25,37 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ticktick", tags=["ticktick"])
 
 
+def _build_state(user_id: int, state: str | None) -> str:
+    return state or f"user_{user_id}"
+
+
 @router.get("/connect")
 async def connect_ticktick(
-    user_id: int = Query(default=1, description="User ID to connect TickTick for"),
     state: Optional[str] = Query(default=None, description="CSRF state parameter"),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Initiate TickTick OAuth flow.
-
-    Redirects user to TickTick authorization page.
-    """
+    """Initiate TickTick OAuth flow with a HTTP redirect."""
     try:
-        # Generate state if not provided (in production, should store in session)
-        if not state:
-            state = f"user_{user_id}"
-
-        auth_url = TickTickOAuth.get_authorization_url(state=state)
+        user_id = current_user.id
+        resolved_state = _build_state(user_id, state)
+        auth_url = TickTickOAuth.get_authorization_url(state=resolved_state)
         return RedirectResponse(url=auth_url, status_code=302)
+
+    except TickTickNotConfiguredError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/connect/url")
+async def connect_ticktick_url(
+    state: Optional[str] = Query(default=None, description="CSRF state parameter"),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the TickTick OAuth authorization URL (no redirect)."""
+    try:
+        user_id = current_user.id
+        resolved_state = _build_state(user_id, state)
+        auth_url = TickTickOAuth.get_authorization_url(state=resolved_state)
+        return {"authorization_url": auth_url}
 
     except TickTickNotConfiguredError as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -59,7 +74,7 @@ async def ticktick_callback(
     """
     try:
         # Extract user_id from state (in production, verify state from session)
-        user_id = 1  # Default user for now
+        user_id = 1  # Fallback for legacy state values
         if state and state.startswith("user_"):
             try:
                 user_id = int(state.split("_")[1])
@@ -101,13 +116,14 @@ async def ticktick_callback(
 
 @router.get("/status")
 async def ticktick_status(
-    user_id: int = Query(default=1, description="User ID to check status for"),
     db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Check if TickTick is connected for a user.
     """
     try:
+        user_id = current_user.id
         client = TickTickClient(user_id, db)
         token = client._get_token()
 
@@ -121,20 +137,21 @@ async def ticktick_status(
     except (TickTickNotConfiguredError, TickTickAuthError) as e:
         return {
             "connected": False,
-            "user_id": user_id,
+            "user_id": current_user.id,
             "error": str(e),
         }
 
 
 @router.get("/projects")
 async def get_projects(
-    user_id: int = Query(default=1, description="User ID"),
     db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get all TickTick projects (lists) for the user.
     """
     try:
+        user_id = current_user.id
         client = TickTickClient(user_id, db)
         projects = await client.get_projects()
 
@@ -154,8 +171,8 @@ async def get_projects(
 
 @router.post("/disconnect")
 async def disconnect_ticktick(
-    user_id: int = Query(default=1, description="User ID to disconnect TickTick for"),
     db: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Disconnect TickTick integration for a user.
@@ -164,6 +181,7 @@ async def disconnect_ticktick(
     """
     from ..models import TickTickToken
 
+    user_id = current_user.id
     token = db.query(TickTickToken).filter(TickTickToken.user_id == user_id).first()
 
     if not token:

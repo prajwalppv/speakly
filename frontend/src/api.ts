@@ -190,24 +190,24 @@ export interface TickTickProjectsResponse {
   projects: TickTickProject[];
 }
 
-export async function getTickTickStatus(userId: number = 1): Promise<TickTickStatusResponse> {
-  const response = await client.get<TickTickStatusResponse>(`/api/ticktick/status?user_id=${userId}`);
+export async function getTickTickStatus(): Promise<TickTickStatusResponse> {
+  const response = await client.get<TickTickStatusResponse>(`/api/ticktick/status`);
   return response.data;
 }
 
-export async function connectTickTick(userId: number = 1): Promise<void> {
-  // This will redirect the browser to TickTick OAuth
-  const prefix = RESOLVED_BASE_URL || "";
-  const normalizedPrefix = prefix.endsWith("/") ? prefix.slice(0, -1) : prefix;
-  window.location.href = `${normalizedPrefix}/api/ticktick/connect?user_id=${userId}`;
+export async function connectTickTick(): Promise<void> {
+  const response = await client.get<{ authorization_url: string }>(
+    `/api/ticktick/connect/url`
+  );
+  window.location.href = response.data.authorization_url;
 }
 
-export async function disconnectTickTick(userId: number = 1): Promise<void> {
-  await client.post(`/api/ticktick/disconnect?user_id=${userId}`);
+export async function disconnectTickTick(): Promise<void> {
+  await client.post(`/api/ticktick/disconnect`);
 }
 
-export async function getTickTickProjects(userId: number = 1): Promise<TickTickProjectsResponse> {
-  const response = await client.get<TickTickProjectsResponse>(`/api/ticktick/projects?user_id=${userId}`);
+export async function getTickTickProjects(): Promise<TickTickProjectsResponse> {
+  const response = await client.get<TickTickProjectsResponse>(`/api/ticktick/projects`);
   return response.data;
 }
 
