@@ -1,0 +1,49 @@
+# Railway ignore file - don't deploy these to Railway
+
+# Frontend files (deployed separately on Vercel)
+frontend/
+
+# Development files
+.env
+.env.local
+.env.*.local
+.vscode/
+.idea/
+
+# Documentation (not needed in production)
+docs/
+DEPLOY.md
+README.md
+Makefile
+
+# CI/CD
+.github/
+
+# Docker (Railway uses Nixpacks)
+docker-compose.yml
+Dockerfile
+frontend/Dockerfile
+
+# Local development artifacts
+backend/data/
+backend/logs/
+backend/storage/
+*.db
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Tests
+backend/tests/
+*.test.py
+test_*.py
+
+# Git
+.git/
+.gitignore
