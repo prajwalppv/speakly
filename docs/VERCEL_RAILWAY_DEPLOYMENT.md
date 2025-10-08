@@ -93,7 +93,12 @@ TICKTICK_CLIENT_SECRET=********************************
 1. Go to: https://railway.app/new
 2. Click **"Deploy from GitHub repo"**
 3. Select your `speakly` repository
-4. Railway will auto-detect it as a Python app
+4. Railway will auto-detect it as a Python app using the `nixpacks.toml` config
+
+**Note:** The repository includes Railway config files at the root:
+- `nixpacks.toml` - Build configuration
+- `Procfile` - Start command
+- `railway.json` - Railway settings
 
 ### B. Add PostgreSQL Database
 
@@ -151,18 +156,17 @@ SPEAKLY_DEVELOPER_MODE=false
 
 **Note:** Replace `********************************` with your actual keys!
 
-### D. Configure Build Settings
+### D. Verify Build Settings (Auto-configured)
 
-1. In your backend service → **"Settings"** tab
-2. **Root Directory:** Leave empty (or set to `/`)
-3. **Build Command:** (Auto-detected, but verify it's):
-   ```
-   pip install -r backend/requirements-dev.txt
-   ```
-4. **Start Command:** (Should be auto-detected):
-   ```
-   uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
-   ```
+Railway will automatically use the configuration files in your repo:
+
+- **Build Command:** `pip install -r backend/requirements-dev.txt` (from `railway.json`)
+- **Start Command:** `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
+
+You shouldn't need to change these, but if needed:
+1. Go to your backend service → **"Settings"** tab
+2. Scroll to **"Deploy"** section
+3. Verify the commands match above
 
 ### E. Deploy Backend
 

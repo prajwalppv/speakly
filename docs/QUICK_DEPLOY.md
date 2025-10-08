@@ -20,10 +20,11 @@ git push -u origin main
 ### 2. Deploy Backend (Railway)
 1. Go to https://railway.app/new
 2. Click "Deploy from GitHub repo" → Select `speakly`
-3. Add PostgreSQL: Click "+ New" → "Database" → "PostgreSQL"
-4. Set environment variables (see below)
-5. Wait for deployment (2-3 min)
-6. Copy your backend URL: `https://YOUR-BACKEND.up.railway.app`
+3. Railway auto-detects Python using `nixpacks.toml` (already in repo)
+4. Add PostgreSQL: Click "+ New" → "Database" → "PostgreSQL"
+5. Set environment variables (see below)
+6. Wait for deployment (2-3 min)
+7. Copy your backend URL: `https://YOUR-BACKEND.up.railway.app`
 
 ### 3. Deploy Frontend (Vercel)
 1. Go to https://vercel.com/new
