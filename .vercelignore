@@ -1,0 +1,38 @@
+# Vercel ignore file - don't deploy these to Vercel
+
+# Backend files (deployed separately on Railway)
+backend/
+
+# Development files
+.env
+.env.local
+.env.*.local
+.vscode/
+.idea/
+
+# Documentation (not needed in production)
+docs/
+DEPLOY.md
+README.md
+Makefile
+
+# CI/CD
+.github/
+
+# Docker
+docker-compose.yml
+Dockerfile
+backend/Dockerfile
+
+# Python files
+*.py
+__pycache__/
+*.pyc
+
+# Database files
+*.db
+*.log
+
+# Git
+.git/
+.gitignore
