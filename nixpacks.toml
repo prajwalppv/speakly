@@ -1,11 +1,5 @@
 [phases.setup]
 nixPkgs = ["python311", "postgresql"]
 
-[phases.install]
-cmds = ["pip install -r backend/requirements-dev.txt"]
-
-[phases.build]
-cmds = ["echo 'Build phase complete'"]
-
 [start]
 cmd = "uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
