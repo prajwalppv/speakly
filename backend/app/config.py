@@ -54,6 +54,28 @@ class Settings(BaseSettings):
         default="auto", validation_alias="SPEAKLY_LLM_PROVIDER"
     )
     
+    # LLM Rate Limiting and Retry Configuration
+    llm_max_concurrent_requests: int = Field(
+        default=1,  # Reduced from 3 to prevent overwhelming API (each session makes 4 calls)
+        validation_alias="SPEAKLY_LLM_MAX_CONCURRENT_REQUESTS",
+        description="Maximum number of concurrent LLM API requests"
+    )
+    llm_retry_max_attempts: int = Field(
+        default=5,
+        validation_alias="SPEAKLY_LLM_RETRY_MAX_ATTEMPTS",
+        description="Maximum number of retry attempts for failed LLM requests"
+    )
+    llm_retry_min_wait_seconds: int = Field(
+        default=2,  # Increased from 1 to give API more recovery time
+        validation_alias="SPEAKLY_LLM_RETRY_MIN_WAIT_SECONDS",
+        description="Minimum wait time in seconds between retries"
+    )
+    llm_retry_max_wait_seconds: int = Field(
+        default=60,
+        validation_alias="SPEAKLY_LLM_RETRY_MAX_WAIT_SECONDS",
+        description="Maximum wait time in seconds between retries"
+    )
+    
     todo_confidence_threshold: float = Field(
         default=0.35, validation_alias="TODO_CONFIDENCE_THRESHOLD"
     )

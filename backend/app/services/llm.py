@@ -8,6 +8,13 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
 import httpx
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+)
 
 from ..database import SessionLocal
 from ..models import Session as SessionModel, Transcription, LlmRun, Todo
@@ -16,6 +23,20 @@ from .metrics import track_performance, log_errors
 from .task_sync_service import schedule_task_sync
 
 logger = logging.getLogger(__name__)
+
+# Global semaphore for rate limiting concurrent LLM requests
+# This prevents overwhelming the API with too many simultaneous requests
+_llm_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_llm_semaphore() -> asyncio.Semaphore:
+    """Get or create the global LLM semaphore for rate limiting."""
+    global _llm_semaphore
+    if _llm_semaphore is None:
+        max_concurrent = settings.llm_max_concurrent_requests
+        _llm_semaphore = asyncio.Semaphore(max_concurrent)
+        logger.info(f"Initialized LLM semaphore with max_concurrent={max_concurrent}")
+    return _llm_semaphore
 
 
 SUMMARY_PROMPT = textwrap.dedent(
@@ -165,6 +186,11 @@ class LlmProvider(ABC):
         return None
 
 
+class GroqRateLimitError(LlmError):
+    """Raised when Groq API rate limit is exceeded."""
+    pass
+
+
 class GroqProvider(LlmProvider):
     name = "groq"
 
@@ -177,40 +203,97 @@ class GroqProvider(LlmProvider):
         return bool(self._api_key)
 
     def generate(self, prompt: str, task: LlmTask) -> str:
+        """Generate content with retry logic and rate limiting.
+        
+        This method includes:
+        - Exponential backoff retry for rate limits and transient errors
+        - Configurable retry attempts and wait times
+        - Proper error handling and logging
+        """
         if not self.is_available():
             raise LlmError("Groq provider not configured")
 
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": self._model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant. Be concise and direct in your responses.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 1.0,
-            "max_tokens": 4000,
-        }
+        # Use retry decorator configuration from settings
+        @retry(
+            retry=retry_if_exception_type((GroqRateLimitError, httpx.TimeoutException, httpx.NetworkError)),
+            stop=stop_after_attempt(settings.llm_retry_max_attempts),
+            wait=wait_exponential(
+                multiplier=1,
+                min=settings.llm_retry_min_wait_seconds,
+                max=settings.llm_retry_max_wait_seconds
+            ),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
+        )
+        def _make_request() -> str:
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": self._model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant. Be concise and direct in your responses.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 1.0,
+                "max_tokens": 4000,
+            }
 
+            try:
+                response = httpx.post(url, headers=headers, json=payload, timeout=30)
+                
+                # Handle rate limiting specifically
+                if response.status_code == 429:
+                    retry_after = response.headers.get("Retry-After", "unknown")
+                    logger.warning(
+                        f"Groq API rate limit hit (429). Retry-After: {retry_after}",
+                        extra={"extra_data": {"task": task.value, "retry_after": retry_after}}
+                    )
+                    raise GroqRateLimitError(f"Rate limit exceeded. Retry after: {retry_after}")
+                
+                # Handle other 5xx errors as retryable
+                if 500 <= response.status_code < 600:
+                    logger.warning(
+                        f"Groq API server error ({response.status_code}). Will retry.",
+                        extra={"extra_data": {"task": task.value, "status_code": response.status_code}}
+                    )
+                    raise GroqRateLimitError(f"Server error: {response.status_code}")
+                
+                response.raise_for_status()
+                
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                logger.warning(f"Groq API network error: {exc}. Will retry.")
+                raise  # Will be retried by tenacity
+            except GroqRateLimitError:
+                raise  # Will be retried by tenacity
+            except Exception as exc:
+                # Non-retryable errors (auth, bad request, etc.)
+                logger.error(f"Groq API non-retryable error: {exc}")
+                raise LlmError(f"Groq API error: {exc}") from exc
+
+            data = response.json()
+            try:
+                text = data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError) as exc:
+                raise LlmError(f"Unexpected Groq response format: {data}") from exc
+
+            return self._strip_thinking_tags(text).strip()
+        
+        # Execute with retry logic
         try:
-            response = httpx.post(url, headers=headers, json=payload, timeout=30)
-            response.raise_for_status()
-        except Exception as exc:  # pragma: no cover - network failure path
-            raise LlmError(f"Groq API error: {exc}") from exc
-
-        data = response.json()
-        try:
-            text = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError) as exc:
-            raise LlmError(f"Unexpected Groq response format: {data}") from exc
-
-        return self._strip_thinking_tags(text).strip()
+            return _make_request()
+        except (GroqRateLimitError, httpx.TimeoutException, httpx.NetworkError) as exc:
+            # All retries exhausted
+            logger.error(
+                f"Groq API request failed after {settings.llm_retry_max_attempts} attempts: {exc}",
+                extra={"extra_data": {"task": task.value}}
+            )
+            raise LlmError(f"Groq API request failed after retries: {exc}") from exc
 
     def model_for(self, task: LlmTask) -> str:
         return self._model
@@ -423,8 +506,24 @@ class LlmService:
 
 
 async def schedule_summary_and_todos(session_id: int, transcription_id: int) -> None:
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, _run_summary_and_todos, session_id, transcription_id)
+    """Schedule LLM processing with rate limiting to prevent overwhelming the API.
+    
+    Uses a semaphore to limit concurrent LLM operations, preventing throttling
+    when processing multiple audio files simultaneously.
+    """
+    semaphore = _get_llm_semaphore()
+    
+    async with semaphore:
+        logger.info(
+            f"Acquired LLM semaphore for session {session_id}",
+            extra={"extra_data": {"session_id": session_id, "transcription_id": transcription_id}}
+        )
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _run_summary_and_todos, session_id, transcription_id)
+        logger.info(
+            f"Released LLM semaphore for session {session_id}",
+            extra={"extra_data": {"session_id": session_id}}
+        )
 
 
 def _generate_title(service: LlmService, session: SessionModel, transcript: str, db) -> bool:
