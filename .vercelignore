@@ -28,6 +28,14 @@ backend/Dockerfile
 *.py
 __pycache__/
 *.pyc
+requirements.txt
+requirements-dev.txt
+
+# Railway config (not needed for Vercel)
+nixpacks.toml
+Procfile
+railway.json
+.railwayignore
 
 # Database files
 *.db

@@ -96,6 +96,7 @@ TICKTICK_CLIENT_SECRET=********************************
 4. Railway will auto-detect it as a Python app using the `nixpacks.toml` config
 
 **Note:** The repository includes Railway config files at the root:
+- `requirements.txt` - Python project marker (references backend dependencies)
 - `nixpacks.toml` - Build configuration
 - `Procfile` - Start command
 - `railway.json` - Railway settings
