@@ -156,6 +156,7 @@ def get_or_create_user_from_clerk(
             db.refresh(user)
             logger.info(f"Updated user {user.id} from Clerk data")
         
+        logger.debug(f"Found existing user: id={user.id}, clerk_id={clerk_user_id}, email={email}")
         return user
     
     # Create new user

@@ -139,6 +139,12 @@ async def list_sessions(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> list[SessionResponse]:
+    # Log for debugging user persistence issues
+    logger.info(
+        f"Listing sessions for user_id={current_user.id}, "
+        f"clerk_id={current_user.clerk_user_id}, email={current_user.email}"
+    )
+    
     # Filter by authenticated user
     speaker_query = db.query(SessionModel).filter(
         SessionModel.user_id == current_user.id
