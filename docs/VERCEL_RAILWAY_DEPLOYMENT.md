@@ -65,7 +65,7 @@ You'll need these keys from your `.env` file:
 ### Required Keys:
 
 ```bash
-# Groq (FREE - for AI summaries)
+# Groq (FREE - for both STT and AI summaries!)
 GROQ_API_KEY=gsk_********************************
 
 # Clerk (Authentication)
@@ -73,14 +73,20 @@ CLERK_SECRET_KEY=sk_test_********************************
 # For frontend:
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_********************************
 
-# ElevenLabs (Speech-to-Text)
-ELEVENLABS_API_KEY=sk_********************************
-ELEVENLABS_WEBHOOK_SECRET=wsec_********************************
-
 # TickTick (Optional - for task sync)
 TICKTICK_CLIENT_ID=********************************
 TICKTICK_CLIENT_SECRET=********************************
 ```
+
+### Optional Keys (Only if you need speaker diarization):
+
+```bash
+# ElevenLabs (Premium Speech-to-Text with speaker identification)
+ELEVENLABS_API_KEY=sk_********************************
+ELEVENLABS_WEBHOOK_SECRET=wsec_********************************
+```
+
+**Note:** Groq provides FREE speech-to-text via Whisper! Only configure ElevenLabs if you specifically need speaker diarization for multi-person conversations.
 
 **Tip:** Keep these handy in a text file - you'll paste them into Railway/Vercel in the next steps.
 
@@ -123,14 +129,17 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 # Clerk Auth
 CLERK_SECRET_KEY=sk_test_********************************
 
-# ElevenLabs STT
-ELEVENLABS_API_KEY=sk_********************************
-ELEVENLABS_BASE_URL=https://api.elevenlabs.io
-ELEVENLABS_WEBHOOK_SECRET=wsec_********************************
-ELEVENLABS_DIARIZATION_ENABLED=true
-
-# Groq LLM
+# Speech-to-Text (Groq recommended - free & fast!)
+SPEAKLY_STT_PROVIDER=groq
 GROQ_API_KEY=gsk_********************************
+
+# Optional: ElevenLabs STT (only if you need speaker diarization)
+# ELEVENLABS_API_KEY=sk_********************************
+# ELEVENLABS_BASE_URL=https://api.elevenlabs.io
+# ELEVENLABS_WEBHOOK_SECRET=wsec_********************************
+# ELEVENLABS_DIARIZATION_ENABLED=true
+
+# LLM (uses same Groq key as STT)
 GROQ_MODEL=deepseek-r1-distill-llama-70b
 
 # LLM Rate Limiting

@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
 import httpx
+from groq import Groq
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -198,9 +199,18 @@ class GroqProvider(LlmProvider):
         super().__init__(settings)
         self._api_key = (getattr(settings, "groq_api_key", "") or "").strip()
         self._model = (getattr(settings, "groq_model", "") or "gpt-4o-mini").strip() or "gpt-4o-mini"
+        self._client = None
 
     def is_available(self) -> bool:
         return bool(self._api_key)
+    
+    def _get_client(self) -> Groq:
+        """Lazy initialization of Groq client."""
+        if self._client is None:
+            if not self._api_key:
+                raise LlmError("Groq API key not configured")
+            self._client = Groq(api_key=self._api_key)
+        return self._client
 
     def generate(self, prompt: str, task: LlmTask) -> str:
         """Generate content with retry logic and rate limiting.
@@ -226,63 +236,51 @@ class GroqProvider(LlmProvider):
             reraise=True,
         )
         def _make_request() -> str:
-            url = "https://api.groq.com/openai/v1/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            }
-            payload = {
-                "model": self._model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant. Be concise and direct in your responses.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 1.0,
-                "max_tokens": 4000,
-            }
-
             try:
-                response = httpx.post(url, headers=headers, json=payload, timeout=30)
+                # Use Groq SDK for better compatibility
+                client = self._get_client()
                 
-                # Handle rate limiting specifically
-                if response.status_code == 429:
-                    retry_after = response.headers.get("Retry-After", "unknown")
-                    logger.warning(
-                        f"Groq API rate limit hit (429). Retry-After: {retry_after}",
-                        extra={"extra_data": {"task": task.value, "retry_after": retry_after}}
-                    )
-                    raise GroqRateLimitError(f"Rate limit exceeded. Retry after: {retry_after}")
+                response = client.chat.completions.create(
+                    model=self._model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant. Be concise and direct in your responses.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=1.0,
+                    max_tokens=4000,
+                    timeout=180,
+                )
                 
-                # Handle other 5xx errors as retryable
-                if 500 <= response.status_code < 600:
-                    logger.warning(
-                        f"Groq API server error ({response.status_code}). Will retry.",
-                        extra={"extra_data": {"task": task.value, "status_code": response.status_code}}
-                    )
-                    raise GroqRateLimitError(f"Server error: {response.status_code}")
+                text = response.choices[0].message.content
+                if not text:
+                    raise LlmError("Empty response from Groq API")
                 
-                response.raise_for_status()
+                return self._strip_thinking_tags(text).strip()
                 
-            except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                logger.warning(f"Groq API network error: {exc}. Will retry.")
-                raise  # Will be retried by tenacity
-            except GroqRateLimitError:
-                raise  # Will be retried by tenacity
             except Exception as exc:
+                # Check if it's a rate limit error
+                error_str = str(exc).lower()
+                if "429" in error_str or "rate" in error_str:
+                    logger.warning(
+                        f"Groq API rate limit hit. Will retry.",
+                        extra={"extra_data": {"task": task.value}}
+                    )
+                    raise GroqRateLimitError(f"Rate limit exceeded: {exc}") from exc
+                
+                # Check if it's a server error (5xx)
+                if any(code in error_str for code in ["500", "502", "503", "504"]):
+                    logger.warning(
+                        f"Groq API server error. Will retry.",
+                        extra={"extra_data": {"task": task.value}}
+                    )
+                    raise GroqRateLimitError(f"Server error: {exc}") from exc
+                
                 # Non-retryable errors (auth, bad request, etc.)
                 logger.error(f"Groq API non-retryable error: {exc}")
                 raise LlmError(f"Groq API error: {exc}") from exc
-
-            data = response.json()
-            try:
-                text = data["choices"][0]["message"]["content"]
-            except (KeyError, IndexError) as exc:
-                raise LlmError(f"Unexpected Groq response format: {data}") from exc
-
-            return self._strip_thinking_tags(text).strip()
         
         # Execute with retry logic
         try:

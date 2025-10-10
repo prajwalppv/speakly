@@ -20,10 +20,10 @@ from ..models import Transcription as TranscriptionModel
 from ..models import User
 from ..schemas import AudioUploadResponse
 from ..services import (
-    ElevenLabsClient,
-    ElevenLabsError,
-    ElevenLabsNotConfiguredError,
-    get_elevenlabs_client,
+    SttService,
+    SttError,
+    SttNotConfiguredError,
+    get_stt_service,
     schedule_summary_and_todos,
 )
 
@@ -52,7 +52,7 @@ async def upload_audio(
     audio: Annotated[UploadFile, File(description="Audio file to upload")],
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-    elevenlabs_client: ElevenLabsClient = Depends(get_elevenlabs_client),
+    stt_service: SttService = Depends(get_stt_service),
 ) -> AudioUploadResponse:
     if not audio.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
@@ -105,16 +105,16 @@ async def upload_audio(
     developer_message: str | None = None
 
     try:
-        submission = elevenlabs_client.submit_transcription(
+        submission = stt_service.submit_transcription(
             audio_path=stored_path,
             webhook_url=webhook_url,
             metadata=submission_metadata,
         )
-    except ElevenLabsNotConfiguredError:
-        logger.info("ElevenLabs client is not configured; transcription remains pending.")
+    except SttNotConfiguredError:
+        logger.info("STT service not configured; transcription remains pending.")
         transcription.metadata_payload = submission_metadata
-        developer_message = "ElevenLabs API key is not configured; transcription pending locally."
-    except ElevenLabsError as exc:
+        developer_message = "STT provider not configured; transcription pending locally."
+    except SttError as exc:
         logger.exception("Failed to submit audio for transcription")
         session_record.status = "error"
         session_record.last_error = str(exc)
@@ -123,7 +123,7 @@ async def upload_audio(
         transcription.metadata_payload = submission_metadata
         developer_message = str(exc)
     except Exception as exc:  # Catch any unexpected errors
-        logger.exception("Unexpected error during ElevenLabs submission")
+        logger.exception("Unexpected error during STT submission")
         session_record.status = "error"
         session_record.last_error = f"Unexpected error: {exc}"
         transcription.status = "error"
@@ -131,28 +131,68 @@ async def upload_audio(
         transcription.metadata_payload = submission_metadata
         developer_message = f"Unexpected error: {exc}"
     else:  # pragma: no branch - executed when integration succeeds
-        logger.info(
-            "ElevenLabs submission accepted",
-            extra={
-                "extra_data": {
-                    "session_id": session_record.id,
-                    "transcription_id": transcription.id,
-                    "submission": submission,
-                }
-            },
-        )
-        provider_job_id = (
-            submission.get("task_id")
-            or submission.get("id")
-            or submission.get("request_id")
-        )
-        if provider_job_id:
-            transcription.provider_job_id = str(provider_job_id)
-        transcription.metadata_payload = submission
-        transcription.status = "submitted"
-        session_record.status = "awaiting_transcription"
-        if settings.developer_mode:
-            developer_message = f"Submission request_id={submission.get('request_id')}"
+        # Check if this is a synchronous response (e.g., from Groq)
+        is_sync = submission.get("is_sync", False)
+        
+        if is_sync:
+            # Handle synchronous transcription (Groq Whisper)
+            transcription_text = submission.get("transcription_text", "")
+            transcription.text = transcription_text
+            transcription.status = "completed"
+            transcription.provider = submission.get("provider", "unknown")
+            transcription.metadata_payload = submission
+            session_record.status = "processing"
+            session_record.last_transcribed_at = datetime.utcnow()
+            
+            logger.info(
+                f"Synchronous transcription completed ({submission.get('provider')})",
+                extra={
+                    "extra_data": {
+                        "session_id": session_record.id,
+                        "transcription_id": transcription.id,
+                        "provider": submission.get("provider"),
+                        "text_length": len(transcription_text),
+                    }
+                },
+            )
+            
+            # Update processing stages
+            processing_stages["transcribing"] = {
+                "status": "completed",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            processing_stages["diarizing"] = {
+                "status": "completed" if not stt_service.supports_diarization() else "skipped",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            session_record.processing_stages = processing_stages
+            
+            developer_message = f"Sync transcription via {submission.get('provider')}: {len(transcription_text)} chars"
+        else:
+            # Handle asynchronous transcription (ElevenLabs, Mock)
+            logger.info(
+                f"Async transcription submitted ({submission.get('provider')})",
+                extra={
+                    "extra_data": {
+                        "session_id": session_record.id,
+                        "transcription_id": transcription.id,
+                        "submission": submission,
+                    }
+                },
+            )
+            provider_job_id = (
+                submission.get("task_id")
+                or submission.get("id")
+                or submission.get("request_id")
+            )
+            if provider_job_id:
+                transcription.provider_job_id = str(provider_job_id)
+            transcription.provider = submission.get("provider", "unknown")
+            transcription.metadata_payload = submission
+            transcription.status = "submitted"
+            session_record.status = "awaiting_transcription"
+            if settings.developer_mode:
+                developer_message = f"Submission request_id={submission.get('request_id')}"
 
     db.add(session_record)
     db.add(transcription)
@@ -163,7 +203,12 @@ async def upload_audio(
     session_status = session_record.status
     transcription_status = transcription.status
 
-    # In developer mode, trigger mock webhook immediately
+    # For synchronous transcriptions, trigger LLM processing immediately
+    if transcription.status == "completed" and transcription.text:
+        asyncio.create_task(schedule_summary_and_todos(session_record.id, transcription.id))
+        logger.info("Scheduled LLM processing for synchronous transcription")
+
+    # In developer mode, trigger mock webhook immediately for async providers
     if settings.developer_mode and transcription.status == "submitted":
         asyncio.create_task(_trigger_mock_webhook(session_record.id, transcription.id))
         logger.info("Developer mode: scheduled mock webhook trigger")
@@ -326,7 +371,7 @@ async def upload_audio_bulk(
     files: list[UploadFile] = File(..., description="Multiple audio files to upload"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
-    elevenlabs_client: ElevenLabsClient = Depends(get_elevenlabs_client),
+    stt_service: SttService = Depends(get_stt_service),
 ) -> BulkUploadResponse:
     """
     Upload multiple audio files at once.
@@ -402,7 +447,7 @@ async def upload_audio_bulk(
             db.add(transcription)
             db.flush()
             
-            # Submit to ElevenLabs or mock
+            # Submit to STT provider
             try:
                 webhook_url = str(request.url_for("elevenlabs_webhook"))
                 metadata = {
@@ -410,21 +455,51 @@ async def upload_audio_bulk(
                     "transcription_id": transcription.id,
                 }
                 
-                if settings.developer_mode:
-                    transcription.status = "submitted"
+                submission = stt_service.submit_transcription(
+                    audio_path=stored_path,
+                    webhook_url=webhook_url,
+                    metadata=metadata,
+                )
+                
+                # Handle synchronous vs asynchronous transcription
+                is_sync = submission.get("is_sync", False)
+                
+                if is_sync:
+                    # Synchronous transcription (Groq)
+                    transcription.text = submission.get("transcription_text", "")
+                    transcription.status = "completed"
+                    transcription.provider = submission.get("provider", "unknown")
                     session_record.status = "processing"
-                    asyncio.create_task(_trigger_mock_webhook(session_record.id, transcription.id))
+                    session_record.last_transcribed_at = datetime.utcnow()
+                    
+                    # Update processing stages
+                    processing_stages["transcribing"] = {
+                        "status": "completed",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                    processing_stages["diarizing"] = {
+                        "status": "completed" if not stt_service.supports_diarization() else "skipped",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                    session_record.processing_stages = processing_stages
+                    
+                    # Trigger LLM processing
+                    db.commit()
+                    db.refresh(session_record)
+                    db.refresh(transcription)
+                    asyncio.create_task(schedule_summary_and_todos(session_record.id, transcription.id))
                 else:
-                    submission = elevenlabs_client.submit_transcription(
-                        audio_path=stored_path,
-                        webhook_url=webhook_url,
-                        metadata=metadata,
-                    )
+                    # Asynchronous transcription (ElevenLabs, Mock)
                     transcription.provider_job_id = submission.get("request_id")
+                    transcription.provider = submission.get("provider", "unknown")
                     transcription.status = "submitted"
                     session_record.status = "processing"
                     
-            except (ElevenLabsNotConfiguredError, ElevenLabsError) as e:
+                    # For mock/dev mode, trigger webhook
+                    if settings.developer_mode:
+                        asyncio.create_task(_trigger_mock_webhook(session_record.id, transcription.id))
+                    
+            except (SttNotConfiguredError, SttError) as e:
                 transcription.status = "error"
                 transcription.error = str(e)
                 session_record.status = "error"

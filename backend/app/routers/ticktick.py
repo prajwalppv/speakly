@@ -42,7 +42,12 @@ async def connect_ticktick(
         return RedirectResponse(url=auth_url, status_code=302)
 
     except TickTickNotConfiguredError as e:
+        logger.warning(f"TickTick not configured: {str(e)}")
         raise HTTPException(status_code=503, detail=str(e))
+    
+    except Exception as e:
+        logger.exception("Unexpected error generating TickTick authorization URL")
+        raise HTTPException(status_code=500, detail=f"Failed to generate authorization URL: {str(e)}")
 
 
 @router.get("/connect/url")
@@ -58,7 +63,12 @@ async def connect_ticktick_url(
         return {"authorization_url": auth_url}
 
     except TickTickNotConfiguredError as e:
+        logger.warning(f"TickTick not configured: {str(e)}")
         raise HTTPException(status_code=503, detail=str(e))
+    
+    except Exception as e:
+        logger.exception("Unexpected error generating TickTick authorization URL")
+        raise HTTPException(status_code=500, detail=f"Failed to generate authorization URL: {str(e)}")
 
 
 @router.get("/callback")

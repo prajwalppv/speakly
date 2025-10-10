@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     )
     audio_storage_dir: Path = Field(default=AUDIO_STORAGE_DIR, validation_alias="SPEAKLY_AUDIO_DIR")
     log_level: str = Field(default="INFO", validation_alias="SPEAKLY_LOG_LEVEL")
+    
+    # ElevenLabs STT (optional - only needed if using elevenlabs provider)
     elevenlabs_api_key: str | None = Field(default=None, validation_alias="ELEVENLABS_API_KEY")
     elevenlabs_base_url: str = Field(
         default="https://api.elevenlabs.io", validation_alias="ELEVENLABS_BASE_URL"
@@ -41,12 +43,20 @@ class Settings(BaseSettings):
     elevenlabs_diarization_threshold: float | None = Field(
         default=None, validation_alias="ELEVENLABS_DIARIZATION_THRESHOLD"
     )
+    
     pj_profile_name: str = Field(default="PJ", validation_alias="PJ_PROFILE_NAME")
     pj_voice_tags: str = Field(default="pj,patrick", validation_alias="PJ_VOICE_TAGS")
     
+    # Speech-to-Text Provider Configuration
+    stt_provider: Literal["auto", "groq", "elevenlabs", "mock"] = Field(
+        default="auto", 
+        validation_alias="SPEAKLY_STT_PROVIDER",
+        description="STT provider: auto (prefer Groq), groq (Whisper), elevenlabs (Scribe), mock (dev mode)"
+    )
+    
     # LLM Configuration (Groq for production, Ollama for local dev)
     groq_api_key: str | None = Field(default=None, validation_alias="GROQ_API_KEY")
-    groq_model: str = Field(default="deepseek-r1-distill-llama-70b", validation_alias="GROQ_MODEL")
+    groq_model: str = Field(default="llama-3.3-70b-versatile", validation_alias="GROQ_MODEL")
     ollama_base_url: str | None = Field(default=None, validation_alias="OLLAMA_BASE_URL")
     ollama_model_summary: str = Field(default="llama3", validation_alias="OLLAMA_MODEL_SUMMARY")
     ollama_model_todo: str = Field(default="llama3", validation_alias="OLLAMA_MODEL_TODO")
