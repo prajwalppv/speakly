@@ -540,13 +540,6 @@ class TickTickOAuth:
         if not settings.ticktick_client_id or not settings.ticktick_client_secret:
             raise TickTickNotConfiguredError("TickTick credentials not configured")
 
-        # TODO: REMOVE THIS AFTER DEBUGGING! Security risk to log full secret
-        logger.warning(
-            f"TickTick OAuth DEBUG - client_id: {settings.ticktick_client_id}, "
-            f"client_secret: {settings.ticktick_client_secret}, "
-            f"redirect_uri: {settings.ticktick_redirect_uri}"
-        )
-
         data = {
             "client_id": settings.ticktick_client_id,
             "client_secret": settings.ticktick_client_secret,
