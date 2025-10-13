@@ -9,11 +9,12 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import SignIn from "./components/SignIn";
 import Logo from "./components/Logo";
 import LoadingSpinner from "./components/LoadingSpinner";
-import { FolderOpen, Link2 } from "lucide-react";
+import { Compass, FolderOpen, Link2 } from "lucide-react";
 import { fetchSessions, SessionRecord, setAuthToken } from "./api";
 import { cn } from "@/lib/utils";
+import JourneysView from "./components/JourneysView";
 
-type Tab = "upload" | "settings";
+type Tab = "upload" | "journeys" | "settings";
 
 export default function App() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -135,6 +136,21 @@ export default function App() {
                   <span>My Audio</span>
                 </motion.button>
                 <motion.button
+                  onClick={() => setActiveTab("journeys")}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
+                    activeTab === "journeys"
+                      ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
+                      : "text-bone-dim hover:text-bone hover:bg-black-soft"
+                  )}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  aria-label="Journeys"
+                >
+                  <Compass size={18} />
+                  <span>Journeys</span>
+                </motion.button>
+                <motion.button
                   onClick={() => setActiveTab("settings")}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
@@ -199,6 +215,7 @@ export default function App() {
             <TickTickConnect />
           </motion.div>
         )}
+        {activeTab === "journeys" && <JourneysView />}
       </main>
 
       {/* Command Palette */}
