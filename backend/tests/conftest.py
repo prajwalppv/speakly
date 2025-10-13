@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.database import Base, get_session
 from app.main import create_app
 from app.models import User
+from app.config import settings
 
 # Use in-memory SQLite with shared cache for tests
 import tempfile
@@ -201,3 +202,14 @@ def mock_elevenlabs_response() -> dict:
         "text": "This is the transcribed text from ElevenLabs.",
         "task_id": "test-task-123"
     }
+
+
+@pytest.fixture
+def journeys_client(client):
+    """Test client with Journeys feature flag enabled."""
+    original = settings.feature_report_generation
+    settings.feature_report_generation = True
+    try:
+        yield client
+    finally:
+        settings.feature_report_generation = original

@@ -13,7 +13,10 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from groq import Groq
+try:  # pragma: no cover - optional dependency for Groq provider
+    from groq import Groq  # type: ignore
+except ImportError:  # pragma: no cover
+    Groq = None  # type: ignore[assignment]
 
 from ..config import settings
 
@@ -87,6 +90,8 @@ class GroqSttProvider(SttProvider):
         if self._client is None:
             if not self._api_key:
                 raise SttNotConfiguredError("Groq API key is not configured.")
+            if Groq is None:
+                raise SttNotConfiguredError("Groq SDK is not installed. Install the 'groq' package to enable this provider.")
             self._client = Groq(api_key=self._api_key)
         return self._client
 

@@ -8,7 +8,10 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
 import httpx
-from groq import Groq
+try:  # pragma: no cover - optional dependency at runtime
+    from groq import Groq  # type: ignore
+except ImportError:  # pragma: no cover
+    Groq = None  # type: ignore[assignment]
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -202,13 +205,15 @@ class GroqProvider(LlmProvider):
         self._client = None
 
     def is_available(self) -> bool:
-        return bool(self._api_key)
-    
-    def _get_client(self) -> Groq:
+        return bool(self._api_key) and Groq is not None
+
+    def _get_client(self):
         """Lazy initialization of Groq client."""
         if self._client is None:
             if not self._api_key:
                 raise LlmError("Groq API key not configured")
+            if Groq is None:
+                raise LlmError("Groq SDK is not installed. Install the 'groq' package to enable Groq support.")
             self._client = Groq(api_key=self._api_key)
         return self._client
 

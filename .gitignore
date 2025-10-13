@@ -53,3 +53,6 @@ frontend/.env
 PURGE_SECRETS_GUIDE.md
 
 # Local data & media
+
+# Local planning notes (excluding from VCS)
+local_notes/
