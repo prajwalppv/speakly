@@ -28,7 +28,8 @@ def _generate_due_reports_sync() -> None:
             except ValueError:
                 cadence = ReportCadence.WEEKLY
 
-            period_start, period_end = calculate_period_bounds(now, cadence)
+            timezone_name = preference.timezone or "UTC"
+            period_start, period_end = calculate_period_bounds(now, cadence, timezone_name)
 
             if service.has_report_for_period(
                 user_id=preference.user_id,
@@ -50,7 +51,10 @@ def _generate_due_reports_sync() -> None:
             generated += 1
 
         if generated:
-            logger.info("Journeys scheduler generated reports", extra={"count": generated})
+            logger.info(
+                "Journeys scheduler generated reports",
+                extra={"count": generated},
+            )
         db.commit()
 
 

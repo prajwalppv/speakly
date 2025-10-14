@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..config import settings
 from ..database import get_session
-from ..models import ReportCadence, ReportStatus, User
+from ..models import Report, ReportCadence, ReportStatus, User
 from ..schemas import (
     ReportGenerateRequest,
     ReportListResponse,
@@ -17,7 +17,12 @@ from ..schemas import (
     ReportPreferenceResponse,
     ReportResponse,
 )
-from ..services import JourneyReportService, calculate_period_bounds, get_journey_service
+from ..services import (
+    JourneyReportService,
+    calculate_period_bounds,
+    get_journey_service,
+    ReportStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +89,7 @@ def list_journey_reports(
         offset=offset,
         cadences=cadence,
     )
+    reports.sort(key=lambda report: report.period_end, reverse=True)
     total = service.count_reports(user_id=current_user.id, cadences=cadence)
 
     return ReportListResponse(reports=reports, total=total)
@@ -112,12 +118,13 @@ def trigger_journey_report_generation(
         preference_cadence = ReportCadence.WEEKLY
 
     cadence_enum = payload.cadence or preference_cadence
+    tz_name = preference.timezone or "UTC"
 
     end_reference = payload.period_end or datetime.utcnow()
     if payload.period_start and payload.period_end:
         period_start, period_end = payload.period_start, payload.period_end
     else:
-        period_start, period_end = calculate_period_bounds(end_reference, cadence_enum)
+        period_start, period_end = calculate_period_bounds(end_reference, cadence_enum, tz_name)
 
     if period_start >= period_end:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid period range")
@@ -137,6 +144,7 @@ def trigger_journey_report_generation(
                 "user_id": current_user.id,
                 "report_id": report.id,
                 "cadence": cadence_enum.value,
+                "timezone": tz_name,
                 "period_start": period_start.isoformat(),
                 "period_end": period_end.isoformat(),
             }
@@ -154,3 +162,17 @@ def trigger_journey_report_generation(
 
     db.refresh(report)
     return report
+
+
+@router.delete("/reports/{report_id}", status_code=status.HTTP_200_OK)
+def delete_journey_report(
+    report_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> None:
+    _ensure_feature_enabled()
+    report = db.query(Report).filter(Report.id == report_id, Report.user_id == current_user.id).one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    db.delete(report)
+    db.commit()

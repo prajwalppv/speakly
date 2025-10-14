@@ -390,3 +390,7 @@ export async function triggerJourneyReport(
   const response = await client.post<JourneyReport>("/api/journeys/reports/generate", payload ?? {});
   return response.data;
 }
+
+export async function deleteJourneyReport(reportId: number): Promise<void> {
+  await client.delete(`/api/journeys/reports/${reportId}`);
+}

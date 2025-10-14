@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Iterable, Sequence
 import calendar
 
@@ -37,27 +38,48 @@ def _calculate_next_run(start: datetime, cadence: ReportCadence) -> datetime:
     return start + timedelta(weeks=1)
 
 
-def calculate_period_bounds(reference: datetime, cadence: ReportCadence) -> tuple[datetime, datetime]:
-    """Return (start, end) window for a cadence ending at `reference`."""
-    end = reference
-    if cadence is ReportCadence.DAILY:
-        start = end - timedelta(days=1)
-    elif cadence is ReportCadence.WEEKLY:
-        start = end - timedelta(weeks=1)
-    elif cadence is ReportCadence.BIWEEKLY:
-        start = end - timedelta(weeks=2)
-    elif cadence is ReportCadence.MONTHLY:
-        start = _add_months(end, -1)
-    elif cadence is ReportCadence.QUARTERLY:
-        start = _add_months(end, -3)
-    elif cadence is ReportCadence.YEARLY:
-        start = _add_months(end, -12)
-    else:
-        start = end - timedelta(weeks=1)
+def calculate_period_bounds(
+    reference: datetime, cadence: ReportCadence, timezone: str | ZoneInfo | None = None
+) -> tuple[datetime, datetime]:
+    """Return (start, end) window for a cadence ending at `reference`.
 
-    start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-    end = end.replace(microsecond=0)
-    return start, end
+    Results are returned as naive UTC datetimes for database storage.
+    """
+    tzinfo: ZoneInfo
+    if timezone:
+        try:
+            tzinfo = ZoneInfo(timezone) if isinstance(timezone, str) else timezone
+        except ZoneInfoNotFoundError:
+            tzinfo = ZoneInfo("UTC")
+    else:
+        tzinfo = ZoneInfo("UTC")
+
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=UTC)
+    else:
+        reference = reference.astimezone(UTC)
+
+    local_end = reference.astimezone(tzinfo)
+    local_end = local_end.replace(second=0, microsecond=0)
+
+    if cadence is ReportCadence.DAILY:
+        start_local = local_end.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif cadence is ReportCadence.WEEKLY:
+        start_local = (local_end - timedelta(weeks=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    elif cadence is ReportCadence.BIWEEKLY:
+        start_local = (local_end - timedelta(weeks=2)).replace(hour=0, minute=0, second=0, microsecond=0)
+    elif cadence is ReportCadence.MONTHLY:
+        start_local = _add_months(local_end, -1).replace(hour=0, minute=0, second=0, microsecond=0)
+    elif cadence is ReportCadence.QUARTERLY:
+        start_local = _add_months(local_end, -3).replace(hour=0, minute=0, second=0, microsecond=0)
+    elif cadence is ReportCadence.YEARLY:
+        start_local = _add_months(local_end, -12).replace(hour=0, minute=0, second=0, microsecond=0)
+    else:
+        start_local = (local_end - timedelta(weeks=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    start_utc = start_local.astimezone(UTC).replace(tzinfo=None)
+    end_utc = local_end.astimezone(UTC).replace(tzinfo=None)
+    return start_utc, end_utc
 
 
 class JourneyReportService:
@@ -185,8 +207,11 @@ class JourneyReportService:
         summary_generator = JourneySummaryGenerator()
 
         self.mark_report_progress(report=report, status=ReportStatus.IN_PROGRESS)
-        result = builder.build(report)
+        timezone_name = report.preference.timezone if report.preference else "UTC"
+        result = builder.build(report, timezone_name)
         summary_text = summary_generator.generate(result)
+        period_info = result.payload.setdefault("metrics", {}).setdefault("period", {})
+        period_info.setdefault("timezone", timezone_name)
 
         self.mark_report_progress(
             report=report,

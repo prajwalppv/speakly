@@ -21,6 +21,7 @@ class JourneyMetrics:
     top_tags: list[dict[str, Any]]
     period_start: datetime
     period_end: datetime
+    timezone: str
 
 
 @dataclass
@@ -36,7 +37,7 @@ class JourneyReportBuilder:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def build(self, report: Report) -> JourneyBuildResult:
+    def build(self, report: Report, timezone: str = "UTC") -> JourneyBuildResult:
         sessions = (
             self.db.query(SessionModel)
             .filter(SessionModel.user_id == report.user_id)
@@ -52,7 +53,7 @@ class JourneyReportBuilder:
             .all()
         )
 
-        metrics = self._compute_metrics(report, sessions)
+        metrics = self._compute_metrics(report, sessions, timezone)
         session_payload, sessions_context = self._build_session_payload(sessions)
         todo_payload, todos_context = self._build_todo_payload(report, sessions)
         tag_payload = metrics.top_tags
@@ -73,6 +74,7 @@ class JourneyReportBuilder:
                 "period": {
                     "start": metrics.period_start.isoformat(),
                     "end": metrics.period_end.isoformat(),
+                    "timezone": metrics.timezone,
                 },
                 "top_tags": tag_payload,
             },
@@ -82,7 +84,7 @@ class JourneyReportBuilder:
         }
 
         context_lines = [
-            f"Between {report.period_start:%b %d} and {report.period_end:%b %d} there were {metrics.session_count} session(s); {metrics.completed_sessions} completed.",
+            f"Between {report.period_start:%b %d} and {report.period_end:%b %d} ({metrics.timezone}) there were {metrics.session_count} session(s); {metrics.completed_sessions} completed.",
             f"Total listening time: {metrics.total_audio_minutes:.1f} minutes (avg {metrics.average_session_minutes:.1f}).",
             f"Tasks captured: {metrics.todo_created} created, {metrics.todo_completed} completed.",
         ]
@@ -92,7 +94,7 @@ class JourneyReportBuilder:
 
         return JourneyBuildResult(payload=payload, metrics=metrics, context_text=context_text)
 
-    def _compute_metrics(self, report: Report, sessions: list[SessionModel]) -> JourneyMetrics:
+    def _compute_metrics(self, report: Report, sessions: list[SessionModel], timezone: str) -> JourneyMetrics:
         session_count = len(sessions)
         completed_sessions = sum(1 for session in sessions if session.status == "completed")
 
@@ -138,6 +140,7 @@ class JourneyReportBuilder:
             top_tags=top_tags,
             period_start=report.period_start,
             period_end=report.period_end,
+            timezone=timezone,
         )
 
     def _build_session_payload(self, sessions: list[SessionModel]) -> tuple[list[dict[str, Any]], list[str]]:

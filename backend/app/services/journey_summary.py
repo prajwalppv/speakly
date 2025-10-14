@@ -45,7 +45,7 @@ class JourneySummaryGenerator:
         metrics = build_result.metrics
         prompt_lines = [
             "You are generating a multi-session report summary. Summarize concisely in 3-4 paragraphs.",
-            f"Time range: {metrics.period_start:%Y-%m-%d} to {metrics.period_end:%Y-%m-%d}.",
+            f"Time range: {metrics.period_start:%Y-%m-%d} to {metrics.period_end:%Y-%m-%d} ({metrics.timezone}).",
             f"Sessions: {metrics.session_count} total; {metrics.completed_sessions} completed; total {metrics.total_audio_minutes:.1f} minutes.",
             f"Tasks: {metrics.todo_created} captured; {metrics.todo_completed} completed.",
             "Key themes: " + ", ".join(tag["name"] for tag in metrics.top_tags) if metrics.top_tags else "No tags captured.",
@@ -56,7 +56,7 @@ class JourneySummaryGenerator:
 
     def _fallback_summary(self, metrics: JourneyMetrics, payload: dict[str, Any]) -> str:
         parts = [
-            f"Recorded {metrics.session_count} session(s) between {metrics.period_start:%b %d} and {metrics.period_end:%b %d}.",
+            f"Recorded {metrics.session_count} session(s) between {metrics.period_start:%b %d} and {metrics.period_end:%b %d} ({metrics.timezone}).",
         ]
         if metrics.completed_sessions:
             parts.append(f"{metrics.completed_sessions} reached the completed state.")

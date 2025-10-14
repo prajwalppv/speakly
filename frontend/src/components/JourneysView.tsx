@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { AlertTriangle, Calendar, Loader2, RefreshCcw, Sparkles } from "lucide-react";
+import { AlertTriangle, Calendar, Loader2, RefreshCcw, Sparkles, Trash2 } from "lucide-react";
 
 import {
   JourneyCadence,
@@ -11,6 +11,7 @@ import {
   fetchJourneyPreference,
   fetchJourneyReports,
   triggerJourneyReport,
+  deleteJourneyReport,
   updateJourneyPreference,
 } from "@/api";
 import { Button } from "./ui/button";
@@ -34,24 +35,41 @@ interface FormState {
   is_active: boolean;
 }
 
-function formatDate(value: string | null | undefined): string {
+function formatDate(
+  value: string | null | undefined,
+  timeZone?: string,
+  withTime: boolean = true
+): string {
   if (!value) return "—";
   const date = new Date(value);
-  return date.toLocaleString();
+  const options: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  };
+  if (timeZone) {
+    options.timeZone = timeZone;
+  }
+  if (withTime) {
+    options.hour = "2-digit";
+    options.minute = "2-digit";
+  }
+  return new Intl.DateTimeFormat(undefined, options).format(date);
 }
 
-function formatPeriod(start: string, end: string): string {
+function formatPeriod(start: string, end: string, timeZone: string): string {
+  const options: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone,
+  };
   const startDate = new Date(start);
   const endDate = new Date(end);
-  return `${startDate.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })} → ${endDate.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })}`;
+  return `${new Intl.DateTimeFormat(undefined, options).format(startDate)} → ${new Intl.DateTimeFormat(
+    undefined,
+    options
+  ).format(endDate)}`;
 }
 
 function mapStatus(status: JourneyReport["status"]): { badge: "completed" | "processing" | "pending" | "error"; label: string } {
@@ -81,6 +99,7 @@ export default function JourneysView() {
   const [refreshingReports, setRefreshingReports] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [deletingReportId, setDeletingReportId] = useState<number | null>(null);
 
   const activeCadenceLabel = useMemo(() => {
     if (!preference) return "";
@@ -179,6 +198,18 @@ export default function JourneysView() {
       }
     } finally {
       setGeneratingReport(false);
+    }
+  };
+
+  const handleDeleteReport = async (reportId: number) => {
+    setDeletingReportId(reportId);
+    try {
+      await deleteJourneyReport(reportId);
+      await loadReports();
+    } catch (err) {
+      setStatusMessage("Failed to delete report. Please try again.");
+    } finally {
+      setDeletingReportId(null);
     }
   };
 
@@ -347,6 +378,7 @@ export default function JourneysView() {
               const todosSummary: any = (report.payload as any)?.todos ?? {};
               const topTags: any[] = (report.payload as any)?.top_tags ?? metrics?.top_tags ?? [];
               const summaryParagraphs = report.summary ? report.summary.split(/\n+/).filter(Boolean) : [];
+              const periodTimezone: string = metrics?.period?.timezone ?? "UTC";
               return (
                 <div
                   key={report.id}
@@ -355,16 +387,33 @@ export default function JourneysView() {
                     "p-5 hover:border-gold/40 transition-colors"
                   )}
                 >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
                       <h3 className="text-lg font-semibold text-bone capitalize">
-                        {report.cadence} Journey • {formatPeriod(report.period_start, report.period_end)}
+                        {report.cadence} Journey •{" "}
+                        {formatPeriod(report.period_start, report.period_end, periodTimezone)}
                       </h3>
                       <p className="text-sm text-bone-dim">
-                        Generated at {formatDate(report.generated_at ?? report.updated_at)}
+                        Generated at{" "}
+                        {formatDate(report.generated_at ?? report.updated_at, periodTimezone, true)}
                       </p>
                     </div>
                     <StatusBadge status={status.badge} label={status.label} />
+                    <Button
+                      variant="ghost"
+                      className="border border-gold/20 text-xs"
+                      onClick={() => handleDeleteReport(report.id)}
+                      disabled={deletingReportId === report.id}
+                    >
+                      {deletingReportId === report.id ? (
+                        <Loader2 className="animate-spin" size={16} />
+                      ) : (
+                        <>
+                          <Trash2 size={16} />
+                          <span>Delete</span>
+                        </>
+                      )}
+                    </Button>
                   </div>
 
                   {summaryParagraphs.length > 0 && (
@@ -449,10 +498,15 @@ export default function JourneysView() {
 
                   <div className="mt-4 text-xs text-bone-dim">
                     <div>
-                      <span className="font-semibold text-bone">From:</span> {formatDate(report.period_start)}
+                      <span className="font-semibold text-bone">From:</span>{" "}
+                      {formatDate(report.period_start, periodTimezone, false)}
                     </div>
                     <div>
-                      <span className="font-semibold text-bone">To:</span> {formatDate(report.period_end)}
+                      <span className="font-semibold text-bone">To:</span>{" "}
+                      {formatDate(report.period_end, periodTimezone, false)}
+                    </div>
+                    <div>
+                      <span className="font-semibold text-bone">Timezone:</span> {periodTimezone}
                     </div>
                   </div>
                 </div>
