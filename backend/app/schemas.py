@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, Field, ConfigDict
+
+from .models import ReportCadence, ReportStatus
 
 
 # Base model with proper datetime serialization (always UTC with 'Z')
@@ -209,6 +212,68 @@ class ElevenLabsWebhookPayload(BaseModel):
         return None
 
 
+class ReportPreferenceRequest(BaseModel):
+    cadence: ReportCadence = Field(default=ReportCadence.WEEKLY)
+    timezone: str | None = Field(default=None, description="IANA timezone, defaults to UTC")
+    delivery_channels: list[str] | None = Field(default=None)
+    is_active: bool = Field(default=True)
+    email_enabled: bool = Field(default=True)
+
+
+class ReportPreferenceResponse(UTCBaseModel):
+    id: int
+    user_id: int
+    cadence: ReportCadence
+    timezone: str
+    delivery_channels: list[str] | None
+    is_active: bool
+    email_enabled: bool
+    last_generated_at: datetime | None
+    next_scheduled_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReportResponse(UTCBaseModel):
+    id: int
+    user_id: int
+    preference_id: int | None
+    cadence: ReportCadence
+    period_start: datetime
+    period_end: datetime
+    status: ReportStatus
+    summary: str | None
+    payload: dict[str, Any] | None
+    metadata: dict[str, Any] | None = Field(default=None, alias="metadata_payload")
+    generated_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class ReportListResponse(UTCBaseModel):
+    reports: list[ReportResponse]
+    total: int
+
+
+class ReportGenerateRequest(BaseModel):
+    cadence: ReportCadence | None = Field(
+        default=None,
+        description="Optional cadence override. Defaults to the user's preference.",
+    )
+    period_start: datetime | None = Field(
+        default=None,
+        description="Optional override for report period start (UTC). Defaults to cadence window.",
+    )
+    period_end: datetime | None = Field(
+        default=None,
+        description="Optional override for report period end (UTC). Defaults to now.",
+    )
+
+
 __all__ = [
     "APIError",
     "AudioUploadResponse",
@@ -220,4 +285,9 @@ __all__ = [
     "ElevenLabsWebhookPayload",
     "TagResponse",
     "TagCreate",
+    "ReportPreferenceRequest",
+    "ReportPreferenceResponse",
+    "ReportResponse",
+    "ReportListResponse",
+    "ReportGenerateRequest",
 ]

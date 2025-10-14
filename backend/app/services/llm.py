@@ -8,7 +8,10 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
 import httpx
-from groq import Groq
+try:  # pragma: no cover - optional dependency at runtime
+    from groq import Groq  # type: ignore
+except ImportError:  # pragma: no cover
+    Groq = None  # type: ignore[assignment]
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -200,15 +203,19 @@ class GroqProvider(LlmProvider):
         self._api_key = (getattr(settings, "groq_api_key", "") or "").strip()
         self._model = (getattr(settings, "groq_model", "") or "gpt-4o-mini").strip() or "gpt-4o-mini"
         self._client = None
+        base_url = getattr(settings, "groq_api_base_url", "https://api.groq.com") or "https://api.groq.com"
+        self._base_url = base_url.rstrip("/")
 
     def is_available(self) -> bool:
         return bool(self._api_key)
-    
-    def _get_client(self) -> Groq:
+
+    def _get_client(self):
         """Lazy initialization of Groq client."""
         if self._client is None:
             if not self._api_key:
                 raise LlmError("Groq API key not configured")
+            if Groq is None:
+                raise LlmError("Groq SDK is not installed. Install the 'groq' package to enable Groq support.")
             self._client = Groq(api_key=self._api_key)
         return self._client
 
@@ -222,6 +229,12 @@ class GroqProvider(LlmProvider):
         """
         if not self.is_available():
             raise LlmError("Groq provider not configured")
+
+        api_url = f"{self._base_url}/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
 
         # Use retry decorator configuration from settings
         @retry(
@@ -237,50 +250,69 @@ class GroqProvider(LlmProvider):
         )
         def _make_request() -> str:
             try:
-                # Use Groq SDK for better compatibility
-                client = self._get_client()
-                
-                response = client.chat.completions.create(
-                    model=self._model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are a helpful assistant. Be concise and direct in your responses.",
-                        },
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=1.0,
-                    max_tokens=4000,
-                    timeout=180,
+                response = httpx.post(
+                    api_url,
+                    headers=headers,
+                    json={
+                        "model": self._model,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a helpful assistant. Be concise and direct in your responses.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": 1.0,
+                        "max_tokens": 4000,
+                    },
+                    timeout=60,
                 )
-                
-                text = response.choices[0].message.content
-                if not text:
-                    raise LlmError("Empty response from Groq API")
-                
-                return self._strip_thinking_tags(text).strip()
-                
-            except Exception as exc:
-                # Check if it's a rate limit error
-                error_str = str(exc).lower()
-                if "429" in error_str or "rate" in error_str:
-                    logger.warning(
-                        f"Groq API rate limit hit. Will retry.",
-                        extra={"extra_data": {"task": task.value}}
-                    )
-                    raise GroqRateLimitError(f"Rate limit exceeded: {exc}") from exc
-                
-                # Check if it's a server error (5xx)
-                if any(code in error_str for code in ["500", "502", "503", "504"]):
-                    logger.warning(
-                        f"Groq API server error. Will retry.",
-                        extra={"extra_data": {"task": task.value}}
-                    )
-                    raise GroqRateLimitError(f"Server error: {exc}") from exc
-                
-                # Non-retryable errors (auth, bad request, etc.)
-                logger.error(f"Groq API non-retryable error: {exc}")
-                raise LlmError(f"Groq API error: {exc}") from exc
+            except (httpx.TimeoutException, httpx.RequestError) as exc:
+                raise exc
+
+            status = response.status_code
+
+            if status == 429:
+                logger.warning(
+                    "Groq API rate limit hit. Will retry.",
+                    extra={"extra_data": {"task": task.value}}
+                )
+                retry_after = response.headers.get("Retry-After")
+                detail = (
+                    f"Rate limit exceeded (Retry-After={retry_after})"
+                    if retry_after
+                    else "Rate limit exceeded"
+                )
+                raise GroqRateLimitError(detail)
+
+            if 500 <= status < 600:
+                logger.warning(
+                    "Groq API server error. Will retry.",
+                    extra={"extra_data": {"task": task.value}}
+                )
+                raise GroqRateLimitError(f"Server error {status}")
+
+            if status == 401:
+                raise LlmError("Groq API error: Unauthorized")
+
+            if status >= 400:
+                response_text = getattr(response, "text", "")
+                raise LlmError(f"Groq API error {status}: {response_text[:200]}")
+
+            try:
+                data = response.json()
+            except Exception as exc:  # pragma: no cover - unexpected parse error
+                raise LlmError(f"Groq API response parse error: {exc}") from exc
+
+            try:
+                text = data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError) as exc:
+                raise LlmError("Groq API response missing content") from exc
+
+            if not text:
+                raise LlmError("Empty response from Groq API")
+
+            return self._strip_thinking_tags(text).strip()
         
         # Execute with retry logic
         try:

@@ -5,6 +5,13 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Generator
+import sys
+
+# Ensure the repository root is on sys.path so `backend` and `app` packages import correctly
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+project_root_str = str(PROJECT_ROOT)
+if project_root_str not in sys.path:
+    sys.path.insert(0, project_root_str)
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,6 +21,56 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.database import Base, get_session
 from app.main import create_app
 from app.models import User
+from app.config import settings
+from app.services import get_elevenlabs_client, ElevenLabsClient, get_stt_service
+
+
+class MockSttService:
+    """Mock implementation of the STT service for all tests."""
+
+    name = "mock"
+
+    def __init__(self, *args, **kwargs) -> None:
+        self.requested_provider = "mock"
+
+    @property
+    def provider(self):  # pragma: no cover - compatibility helper
+        return self
+
+    @property
+    def provider_name(self) -> str:
+        return "mock"
+
+    def is_enabled(self) -> bool:
+        return True
+
+    def supports_diarization(self) -> bool:
+        return False
+
+    def submit_transcription(self, *, audio_path, webhook_url, metadata=None):
+        import uuid
+
+        return {
+            "provider": "mock",
+            "request_id": f"mock-stt-{uuid.uuid4().hex[:8]}",
+            "transcription_id": f"mock-trans-{uuid.uuid4().hex[:8]}",
+            "is_sync": False,
+            "metadata": metadata,
+        }
+
+
+@pytest.fixture(autouse=True)
+def _mock_stt_global(monkeypatch):
+    """Ensure all code paths use the mock STT service."""
+
+    def _factory(*_args, **_kwargs):
+        return MockSttService()
+
+    monkeypatch.setattr("app.services.get_stt_service", _factory)
+    monkeypatch.setattr("app.services.stt.get_stt_service", _factory)
+    monkeypatch.setattr("app.services.stt.SttService", MockSttService)
+    monkeypatch.setattr("app.routers.audio.get_stt_service", _factory, raising=False)
+    yield
 
 # Use in-memory SQLite with shared cache for tests
 import tempfile
@@ -70,7 +127,11 @@ def client(test_db: Session):
     from unittest.mock import Mock
     from app.main import create_app
     from app.auth import get_current_user
-    from app.services import get_elevenlabs_client, ElevenLabsClient
+    from app.services import (
+        get_elevenlabs_client,
+        ElevenLabsClient,
+        get_stt_service,
+    )
     
     # Create a fresh app instance  
     app = create_app()
@@ -94,28 +155,49 @@ def client(test_db: Session):
         import uuid
         mock_client = Mock(spec=ElevenLabsClient)
         mock_client.is_configured = True
-        # Use a lambda to generate unique IDs for each call
         mock_client.submit_transcription.side_effect = lambda **kwargs: {
             "request_id": f"test-mock-{uuid.uuid4().hex[:16]}",
             "transcription_id": f"test-mock-trans-{uuid.uuid4().hex[:16]}",
         }
         return mock_client
-    
+
+    # Override STT service to avoid external API calls (Groq, ElevenLabs, etc.)
+    class MockSttService:
+        """Mock implementation of the STT service for testing."""
+
+        def supports_diarization(self) -> bool:
+            return False
+
+        def submit_transcription(self, *, audio_path, webhook_url, metadata=None):
+            import uuid
+
+            return {
+                "provider": "mock",
+                "request_id": f"mock-stt-{uuid.uuid4().hex[:8]}",
+                "transcription_id": f"mock-trans-{uuid.uuid4().hex[:8]}",
+                "is_sync": False,
+                "metadata": metadata,
+            }
+
+    def override_get_stt_service():
+        return MockSttService()
+
     # Apply the overrides
     app.dependency_overrides[get_session] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
     app.dependency_overrides[get_elevenlabs_client] = override_get_elevenlabs_client
+    app.dependency_overrides[get_stt_service] = override_get_stt_service
     
     # Clear startup event handlers to prevent init_database() from running
     # (which would try to use production DB instead of test DB)
     app.router.on_startup = []
-    
-    # Create test client
+
     test_client = TestClient(app, raise_server_exceptions=True)
-    yield test_client
-    
-    # Cleanup
-    app.dependency_overrides.clear()
+    try:
+        yield test_client
+    finally:
+        # Cleanup
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -201,3 +283,14 @@ def mock_elevenlabs_response() -> dict:
         "text": "This is the transcribed text from ElevenLabs.",
         "task_id": "test-task-123"
     }
+
+
+@pytest.fixture
+def journeys_client(client):
+    """Test client with Journeys feature flag enabled."""
+    original = settings.feature_report_generation
+    settings.feature_report_generation = True
+    try:
+        yield client
+    finally:
+        settings.feature_report_generation = original

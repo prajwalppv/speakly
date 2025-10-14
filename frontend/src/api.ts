@@ -295,3 +295,104 @@ export async function regenerateSession(sessionId: number): Promise<{ message: s
   const response = await client.post(`/api/sessions/${sessionId}/regenerate`);
   return response.data;
 }
+
+// Journeys / Reports
+export type JourneyCadence =
+  | "daily"
+  | "weekly"
+  | "biweekly"
+  | "monthly"
+  | "quarterly"
+  | "yearly";
+
+export type JourneyStatus = "pending" | "in_progress" | "completed" | "failed";
+
+export interface JourneyPreference {
+  id: number;
+  user_id: number;
+  cadence: JourneyCadence;
+  timezone: string;
+  delivery_channels: string[] | null;
+  is_active: boolean;
+  email_enabled: boolean;
+  last_generated_at: string | null;
+  next_scheduled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JourneyPreferenceUpdateRequest {
+  cadence: JourneyCadence;
+  timezone?: string | null;
+  delivery_channels?: string[] | null;
+  is_active?: boolean;
+  email_enabled?: boolean;
+}
+
+export interface JourneyReport {
+  id: number;
+  user_id: number;
+  preference_id: number | null;
+  cadence: JourneyCadence;
+  period_start: string;
+  period_end: string;
+  status: JourneyStatus;
+  summary: string | null;
+  payload: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  generated_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface JourneyReportList {
+  reports: JourneyReport[];
+  total: number;
+}
+
+export interface JourneyReportGenerateRequest {
+  cadence?: JourneyCadence;
+  period_start?: string;
+  period_end?: string;
+}
+
+export async function fetchJourneyPreference(): Promise<JourneyPreference> {
+  const response = await client.get<JourneyPreference>("/api/journeys/preferences");
+  return response.data;
+}
+
+export async function updateJourneyPreference(
+  payload: JourneyPreferenceUpdateRequest
+): Promise<JourneyPreference> {
+  const response = await client.put<JourneyPreference>("/api/journeys/preferences", payload);
+  return response.data;
+}
+
+export async function fetchJourneyReports(params?: {
+  limit?: number;
+  offset?: number;
+}): Promise<JourneyReportList> {
+  const query = new URLSearchParams();
+  if (params?.limit != null) {
+    query.set("limit", String(params.limit));
+  }
+  if (params?.offset != null) {
+    query.set("offset", String(params.offset));
+  }
+
+  const url =
+    query.toString().length > 0 ? `/api/journeys/reports?${query.toString()}` : "/api/journeys/reports";
+  const response = await client.get<JourneyReportList>(url);
+  return response.data;
+}
+
+export async function triggerJourneyReport(
+  payload?: JourneyReportGenerateRequest
+): Promise<JourneyReport> {
+  const response = await client.post<JourneyReport>("/api/journeys/reports/generate", payload ?? {});
+  return response.data;
+}
+
+export async function deleteJourneyReport(reportId: number): Promise<void> {
+  await client.delete(`/api/journeys/reports/${reportId}`);
+}

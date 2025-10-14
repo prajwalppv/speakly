@@ -6,9 +6,17 @@ from sqlalchemy import pool
 from alembic import context
 
 # Import your Base and models
-import sys
 import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR))
+
+env_path = BASE_DIR / ".." / ".env"
+load_dotenv(env_path)  # load project .env if present
 
 from app.database import Base
 from app.models import *  # Import all models
@@ -63,8 +71,14 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    cfg_section = config.get_section(config.config_ini_section, {})
+    if "sqlalchemy.url" in cfg_section:
+        cfg_section["sqlalchemy.url"] = os.environ.get(
+            "SPEAKLY_DATABASE_URL", cfg_section["sqlalchemy.url"]
+        )
+
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        cfg_section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

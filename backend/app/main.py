@@ -16,6 +16,7 @@ from .errors import format_http_exception, format_unhandled_exception
 from .logging_config import configure_logging
 from .models import User
 from .routers import audio as audio_router
+from .routers import journeys as journeys_router
 from .routers import sessions as sessions_router
 from .routers import tags as tags_router
 from .routers import ticktick as ticktick_router
@@ -23,6 +24,7 @@ from .routers import todos as todos_router
 from .routers import transcriptions as transcriptions_router
 from .routers import webhooks as webhooks_router
 from .services import ensure_pj_profile
+from .startup import shutdown as run_shutdown_tasks
 from .startup import startup as run_startup_tasks
 
 logger = logging.getLogger(__name__)
@@ -87,6 +89,7 @@ def register_routes(app: FastAPI) -> None:
     app.include_router(ticktick_router.router)
     app.include_router(transcriptions_router.router)
     app.include_router(todos_router.router)
+    app.include_router(journeys_router.router)
 
 
 def register_event_handlers(app: FastAPI) -> None:
@@ -97,6 +100,10 @@ def register_event_handlers(app: FastAPI) -> None:
         ensure_default_user()
         ensure_default_speakers()
         run_startup_tasks()  # Initialize integrations
+
+    @app.on_event("shutdown")
+    def _shutdown() -> None:
+        run_shutdown_tasks()
 
 
 async def log_request(request: Request, call_next: Callable):

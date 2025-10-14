@@ -14,6 +14,13 @@ from .stt import (
 )
 from .llm import LlmService, LlmError, LlmTask, schedule_summary_and_todos
 from .speakers import ensure_pj_profile, persist_speaker_segments
+from .journeys import (
+    JourneyReportService,
+    ReportCadence,
+    ReportStatus,
+    calculate_period_bounds,
+    get_journey_service,
+)
 
 __all__ = [
     # Legacy ElevenLabs client (kept for backward compatibility)
@@ -34,4 +41,10 @@ __all__ = [
     # Speakers
     "ensure_pj_profile",
     "persist_speaker_segments",
+    # Journeys
+    "JourneyReportService",
+    "get_journey_service",
+    "ReportCadence",
+    "ReportStatus",
+    "calculate_period_bounds",
 ]

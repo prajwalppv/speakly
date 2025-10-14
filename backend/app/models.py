@@ -1,18 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+import enum
 
-from sqlalchemy import (
-    JSON,
-    Boolean,
-    Column,
-    DateTime,
-    Float,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-)
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum as SqlEnum
+from sqlalchemy import UniqueConstraint
+from sqlalchemy.sql import expression
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -43,6 +37,10 @@ class User(Base, TimestampMixin):
     ticktick_token = relationship(
         "TickTickToken", back_populates="user", uselist=False, cascade="all, delete-orphan"
     )
+    report_preferences = relationship(
+        "ReportPreference", back_populates="user", cascade="all, delete-orphan", uselist=True
+    )
+    reports = relationship("Report", back_populates="user", cascade="all, delete-orphan")
 
 
 class Session(Base, TimestampMixin):
@@ -303,6 +301,63 @@ class SessionTag(Base, TimestampMixin):
         return f"<SessionTag(session_id={self.session_id}, tag_id={self.tag_id}, confidence={self.confidence})>"
 
 
+class ReportCadence(enum.Enum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    BIWEEKLY = "biweekly"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    YEARLY = "yearly"
+
+
+class ReportStatus(enum.Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ReportPreference(Base, TimestampMixin):
+    """User-level configuration for Journeys cadence and delivery."""
+
+    __tablename__ = "report_preferences"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_report_preferences_user_id"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    cadence = Column(String, nullable=False, default=ReportCadence.WEEKLY.value, server_default=ReportCadence.WEEKLY.value)
+    timezone = Column(String, nullable=False, default="UTC", server_default="UTC")
+    delivery_channels = Column(JSON, nullable=True, default=list)
+    is_active = Column(Boolean, nullable=False, default=True, server_default=expression.true())
+    email_enabled = Column(Boolean, nullable=False, default=True, server_default=expression.true())
+    last_generated_at = Column(DateTime, nullable=True)
+    next_scheduled_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="report_preferences")
+    reports = relationship("Report", back_populates="preference", cascade="all, delete-orphan")
+
+
+class Report(Base, TimestampMixin):
+    """Stored generated Journey report."""
+
+    __tablename__ = "reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    preference_id = Column(Integer, ForeignKey("report_preferences.id"), nullable=True, index=True)
+    cadence = Column(String, nullable=False, default=ReportCadence.WEEKLY.value, server_default=ReportCadence.WEEKLY.value)
+    period_start = Column(DateTime, nullable=False)
+    period_end = Column(DateTime, nullable=False)
+    status = Column(String, nullable=False, default=ReportStatus.PENDING.value, server_default=ReportStatus.PENDING.value)
+    summary = Column(Text, nullable=True)
+    payload = Column(JSON, nullable=True)
+    metadata_payload = Column(JSON, nullable=True)
+    generated_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="reports")
+    preference = relationship("ReportPreference", back_populates="reports")
+
+
 __all__ = [
     "User",
     "Session",
@@ -314,4 +369,8 @@ __all__ = [
     "TickTickToken",
     "Tag",
     "SessionTag",
+    "ReportPreference",
+    "Report",
+    "ReportCadence",
+    "ReportStatus",
 ]

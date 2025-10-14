@@ -25,10 +25,16 @@ from ..services import (
     SttNotConfiguredError,
     get_stt_service,
     schedule_summary_and_todos,
+    get_elevenlabs_client as _legacy_get_elevenlabs_client,
 )
 
 router = APIRouter(prefix="/api", tags=["audio"])
 logger = logging.getLogger(__name__)
+
+
+def get_elevenlabs_client():
+    """Legacy compatibility wrapper for tests expecting ElevenLabs client injection."""
+    return _legacy_get_elevenlabs_client()
 
 
 def ensure_storage_dir() -> Path:
