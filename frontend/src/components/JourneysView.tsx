@@ -41,7 +41,8 @@ function formatDate(
   withTime: boolean = true
 ): string {
   if (!value) return "—";
-  const date = new Date(value);
+  const normalized = value.includes("Z") || value.includes("+") ? value : `${value}Z`;
+  const date = new Date(normalized);
   const options: Intl.DateTimeFormatOptions = {
     month: "short",
     day: "numeric",
@@ -64,8 +65,8 @@ function formatPeriod(start: string, end: string, timeZone: string): string {
     year: "numeric",
     timeZone,
   };
-  const startDate = new Date(start);
-  const endDate = new Date(end);
+  const startDate = new Date(start.includes("Z") || start.includes("+") ? start : `${start}Z`);
+  const endDate = new Date(end.includes("Z") || end.includes("+") ? end : `${end}Z`);
   return `${new Intl.DateTimeFormat(undefined, options).format(startDate)} → ${new Intl.DateTimeFormat(
     undefined,
     options

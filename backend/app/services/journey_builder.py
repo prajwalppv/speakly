@@ -2,7 +2,7 @@ from __future__ import annotations
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session, selectinload
@@ -36,6 +36,10 @@ class JourneyReportBuilder:
 
     def __init__(self, db: Session) -> None:
         self.db = db
+
+    @staticmethod
+    def _iso_utc(dt: datetime) -> str:
+        return dt.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z")
 
     def build(self, report: Report, timezone: str = "UTC") -> JourneyBuildResult:
         sessions = (
@@ -72,8 +76,8 @@ class JourneyReportBuilder:
                     "completion_rate": self._completion_rate(metrics),
                 },
                 "period": {
-                    "start": metrics.period_start.isoformat(),
-                    "end": metrics.period_end.isoformat(),
+                    "start": self._iso_utc(metrics.period_start),
+                    "end": self._iso_utc(metrics.period_end),
                     "timezone": metrics.timezone,
                 },
                 "top_tags": tag_payload,
@@ -171,7 +175,7 @@ class JourneyReportBuilder:
             items.append(
                 {
                     "id": session.id,
-                    "created_at": session.created_at.isoformat(),
+                    "created_at": self._iso_utc(session.created_at),
                     "status": session.status,
                     "todo_count": len(session.todos),
                     "duration_minutes": round(duration_minutes, 2),
