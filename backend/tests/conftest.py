@@ -5,6 +5,13 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Generator
+import sys
+
+# Ensure the repository root is on sys.path so `backend` and `app` packages import correctly
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+project_root_str = str(PROJECT_ROOT)
+if project_root_str not in sys.path:
+    sys.path.insert(0, project_root_str)
 
 import pytest
 from fastapi.testclient import TestClient

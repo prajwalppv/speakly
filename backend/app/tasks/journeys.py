@@ -70,7 +70,13 @@ async def _journey_scheduler_loop(interval_seconds: int = 900) -> None:
 
 def start_journey_scheduler() -> None:
     global _scheduler_task
-    loop = asyncio.get_running_loop()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop (e.g., during unit tests). Skip scheduler startup.
+        logger.info("Skipping journey scheduler startup: no running event loop available")
+        return
+
     if _scheduler_task and not _scheduler_task.done():
         return
     _scheduler_task = loop.create_task(_journey_scheduler_loop())
