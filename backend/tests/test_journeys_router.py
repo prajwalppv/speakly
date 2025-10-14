@@ -15,6 +15,7 @@ from app.models import (
     SessionTag,
     User,
 )
+from app.services import JourneyReportService, calculate_period_bounds
 
 
 def test_journeys_feature_disabled(client):
@@ -158,6 +159,28 @@ def _seed_journey_data(test_db):
     )
     test_db.add(session_tag)
     test_db.commit()
+
+
+def test_generate_report_updates_schedule(journeys_client, test_db):
+    journeys_client.get("/api/journeys/preferences")
+    _seed_journey_data(test_db)
+
+    service = JourneyReportService(test_db)
+    pref = service.get_preference(user_id=1)
+    assert pref is not None
+
+    period_start, period_end = calculate_period_bounds(datetime.utcnow(), ReportCadence.WEEKLY)
+    report = service.create_report_placeholder(
+        user_id=1,
+        cadence=ReportCadence.WEEKLY,
+        period_start=period_start,
+        period_end=period_end,
+        preference=pref,
+    )
+    service.generate_report(report)
+
+    assert pref.last_generated_at is not None
+    assert pref.next_scheduled_at is not None
 
 
 def test_trigger_report_generation_populates_report(journeys_client, test_db):

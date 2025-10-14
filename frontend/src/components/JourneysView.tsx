@@ -17,6 +17,7 @@ import { Button } from "./ui/button";
 import { StatusBadge } from "./ui/status-badge";
 import LoadingSpinner from "./LoadingSpinner";
 import { cn } from "@/lib/utils";
+import { TIMEZONE_OPTIONS } from "@/data/timezones";
 
 const cadenceOptions: { value: JourneyCadence; label: string }[] = [
   { value: "daily", label: "Daily" },
@@ -100,7 +101,7 @@ export default function JourneysView() {
       setPreference(pref);
       setFormState({
         cadence: pref.cadence,
-        timezone: pref.timezone,
+        timezone: pref.timezone ?? "UTC",
         is_active: pref.is_active,
       });
 
@@ -295,16 +296,17 @@ export default function JourneysView() {
 
             <label className="flex flex-col gap-2 text-sm text-bone">
               Timezone
-              <input
-                type="text"
+              <select
                 value={formState.timezone}
                 onChange={(event) => handlePreferenceChange("timezone", event.target.value)}
                 className="bg-black-soft border border-gold/20 rounded-md px-3 py-2 text-bone focus:outline-none focus:border-gold"
-                placeholder="e.g. America/Los_Angeles"
-              />
-              <span className="text-xs text-bone-dim">
-                Use an IANA timezone identifier (defaults to UTC).
-              </span>
+              >
+                {TIMEZONE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className="flex items-center gap-3 text-sm text-bone mt-8 md:mt-0">

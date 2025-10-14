@@ -133,7 +133,7 @@ class JourneyReportService:
     ) -> int:
         query = self.db.query(Report).filter(Report.user_id == user_id)
         if cadences:
-            query = query.filter(Report.cadence.in_(cadences))
+            query = query.filter(Report.cadence.in_([c.value for c in cadences]))
         return query.count()
 
     def create_report_placeholder(
@@ -167,10 +167,7 @@ class JourneyReportService:
         payload: dict | None = None,
         metadata: dict | None = None,
     ) -> Report:
-        if isinstance(status, ReportStatus):
-            report.status = status.value
-        else:
-            report.status = status
+        report.status = status.value if isinstance(status, ReportStatus) else status
         if summary is not None:
             report.summary = summary
         if payload is not None:
@@ -193,7 +190,44 @@ class JourneyReportService:
             summary=summary,
             payload=payload,
         )
+        self._update_preference_after_generation(report)
         return report
+
+    def get_due_preferences(self, now: datetime) -> list[ReportPreference]:
+        return (
+            self.db.query(ReportPreference)
+            .filter(ReportPreference.is_active.is_(True))
+            .filter(
+                (ReportPreference.next_scheduled_at == None)
+                | (ReportPreference.next_scheduled_at <= now)
+            )
+            .all()
+        )
+
+    def has_report_for_period(
+        self, *, user_id: int, cadence: ReportCadence, period_start: datetime, period_end: datetime
+    ) -> bool:
+        return (
+            self.db.query(Report)
+            .filter(Report.user_id == user_id)
+            .filter(Report.cadence == cadence.value)
+            .filter(Report.period_start == period_start)
+            .filter(Report.period_end == period_end)
+            .first()
+            is not None
+        )
+
+    def _update_preference_after_generation(self, report: Report) -> None:
+        preference = report.preference
+        if not preference:
+            return
+        try:
+            cadence = ReportCadence(preference.cadence)
+        except ValueError:
+            cadence = ReportCadence.WEEKLY
+        preference.last_generated_at = datetime.utcnow()
+        preference.next_scheduled_at = _calculate_next_run(report.period_end, cadence)
+        self.db.flush()
 
 
 def get_journey_service(db: Session) -> JourneyReportService:

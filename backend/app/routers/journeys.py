@@ -106,23 +106,28 @@ def trigger_journey_report_generation(
             timezone="UTC",
         )
 
-    cadence = payload.cadence or preference.cadence
+    try:
+        preference_cadence = ReportCadence(preference.cadence)
+    except ValueError:
+        preference_cadence = ReportCadence.WEEKLY
+
+    cadence_enum = payload.cadence or preference_cadence
 
     end_reference = payload.period_end or datetime.utcnow()
     if payload.period_start and payload.period_end:
         period_start, period_end = payload.period_start, payload.period_end
     else:
-        period_start, period_end = calculate_period_bounds(end_reference, cadence)
+        period_start, period_end = calculate_period_bounds(end_reference, cadence_enum)
 
     if period_start >= period_end:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid period range")
 
     report = service.create_report_placeholder(
         user_id=current_user.id,
-        cadence=cadence,
+        cadence=cadence_enum,
         period_start=period_start,
         period_end=period_end,
-        preference=preference if preference.cadence == cadence else None,
+        preference=preference if preference.cadence == cadence_enum.value else None,
     )
 
     logger.info(
@@ -131,7 +136,7 @@ def trigger_journey_report_generation(
             "extra_data": {
                 "user_id": current_user.id,
                 "report_id": report.id,
-                "cadence": cadence.value,
+                "cadence": cadence_enum.value,
                 "period_start": period_start.isoformat(),
                 "period_end": period_end.isoformat(),
             }

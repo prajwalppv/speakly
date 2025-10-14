@@ -9,6 +9,7 @@ import logging
 
 from .integrations.registry import register_integration
 from .integrations.ticktick_integration import ticktick_integration
+from .tasks import start_journey_scheduler, stop_journey_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -55,4 +56,10 @@ def startup() -> None:
     """
     logger.info("Running application startup tasks...")
     initialize_integrations()
+    start_journey_scheduler()
     logger.info("Application startup complete")
+
+
+def shutdown() -> None:
+    """Cleanup tasks on shutdown."""
+    stop_journey_scheduler()
