@@ -1,9 +1,20 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.config import settings
-from app.models import Report, ReportCadence, ReportPreference, ReportStatus
+from app.models import (
+    Report,
+    ReportCadence,
+    ReportPreference,
+    ReportStatus,
+    Session,
+    Transcription,
+    Todo,
+    Tag,
+    SessionTag,
+    User,
+)
 
 
 def test_journeys_feature_disabled(client):
@@ -24,7 +35,7 @@ def test_get_preference_creates_default(journeys_client, test_db):
     assert data["is_active"] is True
 
     pref = test_db.query(ReportPreference).filter_by(user_id=data["user_id"]).one()
-    assert pref.cadence is ReportCadence.WEEKLY
+    assert pref.cadence == ReportCadence.WEEKLY.value
     assert pref.next_scheduled_at is not None
 
 
@@ -47,7 +58,7 @@ def test_update_preference(journeys_client, test_db):
     assert data["is_active"] is False
 
     pref = test_db.query(ReportPreference).filter_by(user_id=data["user_id"]).one()
-    assert pref.cadence is ReportCadence.MONTHLY
+    assert pref.cadence == ReportCadence.MONTHLY.value
     assert pref.timezone == "America/New_York"
 
 
@@ -60,20 +71,111 @@ def test_list_reports_empty(journeys_client):
     assert data["total"] == 0
 
 
-def test_trigger_report_generation_creates_placeholder(journeys_client, test_db):
+def _seed_journey_data(test_db):
+    user = test_db.query(User).filter_by(name="default").one()
+    now = datetime.utcnow()
+    earlier = now - timedelta(days=2)
+
+    session = Session(
+        user_id=user.id,
+        description="Weekly sync",
+        status="completed",
+        created_at=earlier,
+        updated_at=now,
+        has_pj=False,
+        todo_count=2,
+    )
+    test_db.add(session)
+    test_db.flush()
+
+    transcription = Transcription(
+        session_id=session.id,
+        provider="mock",
+        status="completed",
+        text="Discussed roadmap and deliverables",
+        created_at=earlier,
+        updated_at=earlier,
+        duration_ms=900000,
+    )
+    test_db.add(transcription)
+    test_db.flush()
+
+    from app.models import LlmRun  # local import to avoid circular.
+
+    llm_run = LlmRun(
+        session_id=session.id,
+        transcription_id=transcription.id,
+        run_type="summary",
+        model="mock",
+        prompt="",
+        response="",
+        status="completed",
+        created_at=earlier,
+        updated_at=earlier,
+    )
+    test_db.add(llm_run)
+    test_db.flush()
+
+    # minimal todo entries
+    todo1 = Todo(
+        session_id=session.id,
+        llm_run_id=llm_run.id,
+        title="Send summary email",
+        status="completed",
+        created_at=now,
+        updated_at=now,
+    )
+    test_db.add(todo1)
+
+    todo2 = Todo(
+        session_id=session.id,
+        llm_run_id=llm_run.id,
+        title="Prepare deck",
+        status="pending",
+        created_at=now,
+        updated_at=now,
+    )
+    test_db.add(todo2)
+
+    tag = Tag(
+        name="planning",
+        category="topic",
+        color="#ffcc00",
+        auto_generated=True,
+        created_at=now,
+        updated_at=now,
+    )
+    test_db.add(tag)
+    test_db.flush()
+
+    session_tag = SessionTag(
+        session_id=session.id,
+        tag_id=tag.id,
+        confidence=0.9,
+        auto_generated=True,
+        created_at=now,
+        updated_at=now,
+    )
+    test_db.add(session_tag)
+    test_db.commit()
+
+
+def test_trigger_report_generation_populates_report(journeys_client, test_db):
     journeys_client.get("/api/journeys/preferences")
+    _seed_journey_data(test_db)
 
     payload = {"cadence": ReportCadence.WEEKLY.value}
     response = journeys_client.post("/api/journeys/reports/generate", json=payload)
 
     assert response.status_code == 202
     data = response.json()
-    assert data["status"] == ReportStatus.PENDING.value
+    assert data["status"] == ReportStatus.COMPLETED.value
     assert data["cadence"] == ReportCadence.WEEKLY.value
+    assert data["summary"]
+    assert data["payload"]["metrics"]["sessions"]["total"] >= 1
 
-    # Validate the report exists in the database
-    report_id = data["id"]
-    report = test_db.get(Report, report_id)
+    report = test_db.get(Report, data["id"])
     assert report is not None
-    assert report.status is ReportStatus.PENDING
-    assert report.period_start < report.period_end
+    assert report.status == ReportStatus.COMPLETED.value
+    assert report.summary
+    assert report.payload

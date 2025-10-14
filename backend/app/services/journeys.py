@@ -7,6 +7,7 @@ import calendar
 from sqlalchemy.orm import Session
 
 from ..models import Report, ReportCadence, ReportPreference, ReportStatus
+from .journey_builder import JourneyReportBuilder
 
 
 def _add_months(base: datetime, months: int) -> datetime:
@@ -86,7 +87,7 @@ class JourneyReportService:
         if preference is None:
             preference = ReportPreference(
                 user_id=user_id,
-                cadence=cadence,
+                cadence=cadence.value,
                 timezone=timezone,
                 delivery_channels=list(delivery_channels or []),
                 is_active=is_active,
@@ -95,7 +96,7 @@ class JourneyReportService:
             )
             self.db.add(preference)
         else:
-            preference.cadence = cadence
+            preference.cadence = cadence.value
             preference.timezone = timezone
             preference.delivery_channels = list(delivery_channels or [])
             preference.is_active = is_active
@@ -115,7 +116,7 @@ class JourneyReportService:
     ) -> list[Report]:
         query = self.db.query(Report).filter(Report.user_id == user_id)
         if cadences:
-            query = query.filter(Report.cadence.in_(cadences))
+            query = query.filter(Report.cadence.in_([c.value for c in cadences]))
 
         return (
             query.order_by(Report.period_start.desc())
@@ -146,10 +147,10 @@ class JourneyReportService:
     ) -> Report:
         report = Report(
             user_id=user_id,
-            cadence=cadence,
+            cadence=cadence.value,
             period_start=period_start,
             period_end=period_end,
-            status=ReportStatus.PENDING,
+            status=ReportStatus.PENDING.value,
             preference=preference,
         )
         self.db.add(report)
@@ -166,7 +167,10 @@ class JourneyReportService:
         payload: dict | None = None,
         metadata: dict | None = None,
     ) -> Report:
-        report.status = status
+        if isinstance(status, ReportStatus):
+            report.status = status.value
+        else:
+            report.status = status
         if summary is not None:
             report.summary = summary
         if payload is not None:
@@ -176,7 +180,19 @@ class JourneyReportService:
         if status is ReportStatus.COMPLETED:
             report.generated_at = datetime.utcnow()
         self.db.flush()
-        self.db.refresh(report)
+        return report
+
+    def generate_report(self, report: Report) -> Report:
+        builder = JourneyReportBuilder(self.db)
+        self.mark_report_progress(report=report, status=ReportStatus.IN_PROGRESS)
+        payload = builder.build_payload(report)
+        summary = payload.get("summary") or ""
+        self.mark_report_progress(
+            report=report,
+            status=ReportStatus.COMPLETED,
+            summary=summary,
+            payload=payload,
+        )
         return report
 
 

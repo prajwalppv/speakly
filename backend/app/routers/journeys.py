@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..config import settings
 from ..database import get_session
-from ..models import ReportCadence, User
+from ..models import ReportCadence, ReportStatus, User
 from ..schemas import (
     ReportGenerateRequest,
     ReportListResponse,
@@ -138,7 +138,14 @@ def trigger_journey_report_generation(
         },
     )
 
-    db.commit()
-    db.refresh(report)
+    try:
+        report = service.generate_report(report)
+        db.commit()
+    except Exception as exc:  # pragma: no cover - unexpected errors logged
+        logger.exception("Failed to generate journey report", extra={"report_id": report.id})
+        service.mark_report_progress(report=report, status=ReportStatus.FAILED, summary=str(exc))
+        db.commit()
+        raise HTTPException(status_code=500, detail="Failed to generate report") from exc
 
+    db.refresh(report)
     return report

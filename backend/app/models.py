@@ -325,12 +325,7 @@ class ReportPreference(Base, TimestampMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    cadence = Column(
-        SqlEnum(ReportCadence, name="report_cadence"),
-        nullable=False,
-        default=ReportCadence.WEEKLY,
-        server_default=ReportCadence.WEEKLY.value,
-    )
+    cadence = Column(String, nullable=False, default=ReportCadence.WEEKLY.value, server_default=ReportCadence.WEEKLY.value)
     timezone = Column(String, nullable=False, default="UTC", server_default="UTC")
     delivery_channels = Column(JSON, nullable=True, default=list)
     is_active = Column(Boolean, nullable=False, default=True, server_default=expression.true())
@@ -349,20 +344,10 @@ class Report(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     preference_id = Column(Integer, ForeignKey("report_preferences.id"), nullable=True, index=True)
-    cadence = Column(
-        SqlEnum(ReportCadence, name="report_cadence"),
-        nullable=False,
-        default=ReportCadence.WEEKLY,
-        server_default=ReportCadence.WEEKLY.value,
-    )
+    cadence = Column(String, nullable=False, default=ReportCadence.WEEKLY.value, server_default=ReportCadence.WEEKLY.value)
     period_start = Column(DateTime, nullable=False)
     period_end = Column(DateTime, nullable=False)
-    status = Column(
-        SqlEnum(ReportStatus, name="report_status"),
-        nullable=False,
-        default=ReportStatus.PENDING,
-        server_default=ReportStatus.PENDING.value,
-    )
+    status = Column(String, nullable=False, default=ReportStatus.PENDING.value, server_default=ReportStatus.PENDING.value)
     summary = Column(Text, nullable=True)
     payload = Column(JSON, nullable=True)
     metadata_payload = Column(JSON, nullable=True)
