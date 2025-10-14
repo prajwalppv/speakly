@@ -342,6 +342,11 @@ export default function JourneysView() {
           <div className="space-y-4">
             {reports.map((report) => {
               const status = mapStatus(report.status);
+              const metrics = (report.payload as any)?.metrics;
+              const sessions: any[] = (report.payload as any)?.sessions ?? [];
+              const todosSummary: any = (report.payload as any)?.todos ?? {};
+              const topTags: any[] = (report.payload as any)?.top_tags ?? metrics?.top_tags ?? [];
+              const summaryParagraphs = report.summary ? report.summary.split(/\n+/).filter(Boolean) : [];
               return (
                 <div
                   key={report.id}
@@ -362,8 +367,84 @@ export default function JourneysView() {
                     <StatusBadge status={status.badge} label={status.label} />
                   </div>
 
-                  {report.summary && (
-                    <p className="mt-4 text-bone-dim leading-relaxed">{report.summary}</p>
+                  {summaryParagraphs.length > 0 && (
+                    <div className="mt-4 space-y-2 text-bone-dim leading-relaxed">
+                      {summaryParagraphs.map((paragraph, index) => (
+                        <p key={index}>{paragraph}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {metrics && (
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div className="rounded-lg border border-gold/15 bg-black-soft/50 p-4">
+                        <p className="text-sm text-bone-dim">Sessions</p>
+                        <p className="text-2xl font-semibold text-bone">{metrics.sessions?.total ?? "—"}</p>
+                        <p className="text-xs text-bone-dim mt-1">
+                          {metrics.sessions?.completed ?? 0} completed • {metrics.sessions?.average_minutes ?? 0} avg min
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-gold/15 bg-black-soft/50 p-4">
+                        <p className="text-sm text-bone-dim">Listening Time</p>
+                        <p className="text-2xl font-semibold text-bone">{metrics.sessions?.total_minutes ?? 0}</p>
+                        <p className="text-xs text-bone-dim mt-1">Total minutes processed</p>
+                      </div>
+                      <div className="rounded-lg border border-gold/15 bg-black-soft/50 p-4">
+                        <p className="text-sm text-bone-dim">Tasks</p>
+                        <p className="text-2xl font-semibold text-bone">
+                          {todosSummary.created ?? metrics.todos?.created ?? 0}
+                        </p>
+                        <p className="text-xs text-bone-dim mt-1">
+                          {todosSummary.completed ?? metrics.todos?.completed ?? 0} completed
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {topTags.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {topTags.slice(0, 6).map((tag) => (
+                        <span
+                          key={tag.name}
+                          className="px-3 py-1 rounded-full border border-gold/20 text-xs text-gold bg-gold/5"
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {sessions.length > 0 && (
+                    <div className="mt-6 space-y-3">
+                      <p className="text-sm font-semibold text-bone">Session Highlights</p>
+                      <ul className="space-y-2 text-sm text-bone-dim">
+                        {sessions.slice(0, 4).map((session) => (
+                          <li key={session.id} className="border border-gold/10 rounded-lg p-3 bg-black-soft/40">
+                            <p className="text-bone font-medium">Session {session.id}</p>
+                            {session.summary && <p className="mt-1 text-xs leading-relaxed">{session.summary}</p>}
+                            <div className="mt-2 flex gap-3 text-xs">
+                              <span>{session.todo_count ?? 0} tasks</span>
+                              <span>{session.duration_minutes ?? 0} min</span>
+                              <span className="capitalize">{session.status}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {Array.isArray(todosSummary.highlights) && todosSummary.highlights.length > 0 && (
+                    <div className="mt-6 space-y-2">
+                      <p className="text-sm font-semibold text-bone">Task Highlights</p>
+                      <ul className="space-y-2 text-sm text-bone-dim">
+                        {todosSummary.highlights.slice(0, 4).map((todo: any, idx: number) => (
+                          <li key={`${todo.title}-${idx}`} className="border border-gold/10 rounded-lg p-3 bg-black-soft/30">
+                            <p className="text-bone">{todo.title}</p>
+                            <p className="text-xs capitalize mt-1">Status: {todo.status ?? "unknown"}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
 
                   <div className="mt-4 text-xs text-bone-dim">

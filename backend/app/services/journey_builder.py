@@ -1,14 +1,13 @@
 from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from ..models import Session as SessionModel
-from ..models import Transcription, Todo, SessionTag, Tag, Report
+from ..models import Report, Session as SessionModel, SessionTag, Tag, Todo
 
 
 @dataclass
@@ -20,94 +19,45 @@ class JourneyMetrics:
     todo_created: int
     todo_completed: int
     top_tags: list[dict[str, Any]]
-    periods: dict[str, str]
+    period_start: datetime
+    period_end: datetime
+
+
+@dataclass
+class JourneyBuildResult:
+    payload: dict[str, Any]
+    metrics: JourneyMetrics
+    context_text: str
 
 
 class JourneyReportBuilder:
-    """Aggregate metrics for Journey reports."""
+    """Aggregate metrics and context for Journey reports."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def build_metrics(self, *, user_id: int, period_start: datetime, period_end: datetime) -> JourneyMetrics:
-        session_query = (
+    def build(self, report: Report) -> JourneyBuildResult:
+        sessions = (
             self.db.query(SessionModel)
-            .filter(SessionModel.user_id == user_id)
-            .filter(SessionModel.created_at >= period_start)
-            .filter(SessionModel.created_at <= period_end)
-        )
-
-        session_count = session_query.count()
-        completed_sessions = session_query.filter(SessionModel.status == "completed").count()
-
-        total_duration_ms = (
-            self.db.query(func.coalesce(func.sum(Transcription.duration_ms), 0))
-            .join(SessionModel, Transcription.session_id == SessionModel.id)
-            .filter(SessionModel.user_id == user_id)
-            .filter(SessionModel.created_at >= period_start)
-            .filter(SessionModel.created_at <= period_end)
-            .scalar()
-        ) or 0
-
-        total_minutes = total_duration_ms / 1000 / 60 if total_duration_ms else 0.0
-        average_minutes = total_minutes / session_count if session_count else 0.0
-
-        todo_query = (
-            self.db.query(Todo)
-            .join(SessionModel, Todo.session_id == SessionModel.id)
-            .filter(SessionModel.user_id == user_id)
-            .filter(SessionModel.created_at >= period_start)
-            .filter(SessionModel.created_at <= period_end)
-        )
-        todo_created = todo_query.count()
-        todo_completed = todo_query.filter(Todo.status == "completed").count()
-
-        tag_rows = (
-            self.db.query(Tag.name, Tag.category, func.count(SessionTag.id).label("count"))
-            .join(SessionTag.tag)
-            .join(SessionTag.session)
-            .filter(SessionModel.user_id == user_id)
-            .filter(SessionModel.created_at >= period_start)
-            .filter(SessionModel.created_at <= period_end)
-            .group_by(Tag.id)
-            .order_by(desc("count"))
-            .limit(5)
+            .filter(SessionModel.user_id == report.user_id)
+            .filter(SessionModel.created_at >= report.period_start)
+            .filter(SessionModel.created_at <= report.period_end)
+            .options(
+                selectinload(SessionModel.transcriptions),
+                selectinload(SessionModel.todos),
+                selectinload(SessionModel.summary_run),
+                selectinload(SessionModel.session_tags).selectinload(SessionTag.tag),
+            )
+            .order_by(SessionModel.created_at)
             .all()
         )
-        top_tags = [
-            {
-                "name": row.name,
-                "category": row.category,
-                "count": int(row.count),
-            }
-            for row in tag_rows
-        ]
 
-        return JourneyMetrics(
-            session_count=session_count,
-            completed_sessions=completed_sessions,
-            total_audio_minutes=round(total_minutes, 2),
-            average_session_minutes=round(average_minutes, 2),
-            todo_created=todo_created,
-            todo_completed=todo_completed,
-            top_tags=top_tags,
-            periods={
-                "start": period_start.isoformat(),
-                "end": period_end.isoformat(),
-            },
-        )
+        metrics = self._compute_metrics(report, sessions)
+        session_payload, sessions_context = self._build_session_payload(sessions)
+        todo_payload, todos_context = self._build_todo_payload(report, sessions)
+        tag_payload = metrics.top_tags
 
-    def build_payload(self, report: Report) -> dict[str, Any]:
-        metrics = self.build_metrics(
-            user_id=report.user_id,
-            period_start=report.period_start,
-            period_end=report.period_end,
-        )
-
-        summary = self._compose_summary(report, metrics)
-
-        return {
-            "summary": summary,
+        payload = {
             "metrics": {
                 "sessions": {
                     "total": metrics.session_count,
@@ -118,32 +68,168 @@ class JourneyReportBuilder:
                 "todos": {
                     "created": metrics.todo_created,
                     "completed": metrics.todo_completed,
+                    "completion_rate": self._completion_rate(metrics),
                 },
-                "top_tags": metrics.top_tags,
-                "period": metrics.periods,
+                "period": {
+                    "start": metrics.period_start.isoformat(),
+                    "end": metrics.period_end.isoformat(),
+                },
+                "top_tags": tag_payload,
             },
+            "sessions": session_payload,
+            "todos": todo_payload,
+            "top_tags": tag_payload,
         }
 
-    def _compose_summary(self, report: Report, metrics: JourneyMetrics) -> str:
-        parts = [
-            f"You recorded {metrics.session_count} session(s) between {report.period_start:%b %d} and {report.period_end:%b %d}.",
+        context_lines = [
+            f"Between {report.period_start:%b %d} and {report.period_end:%b %d} there were {metrics.session_count} session(s); {metrics.completed_sessions} completed.",
+            f"Total listening time: {metrics.total_audio_minutes:.1f} minutes (avg {metrics.average_session_minutes:.1f}).",
+            f"Tasks captured: {metrics.todo_created} created, {metrics.todo_completed} completed.",
         ]
-        if metrics.completed_sessions:
-            parts.append(f"{metrics.completed_sessions} reached the completed state.")
-        if metrics.total_audio_minutes:
-            parts.append(
-                f"Total listening time was {metrics.total_audio_minutes:.1f} minutes (avg {metrics.average_session_minutes:.1f} per session)."
+        context_lines.extend(sessions_context)
+        context_lines.extend(todos_context)
+        context_text = "\n".join(context_lines)
+
+        return JourneyBuildResult(payload=payload, metrics=metrics, context_text=context_text)
+
+    def _compute_metrics(self, report: Report, sessions: list[SessionModel]) -> JourneyMetrics:
+        session_count = len(sessions)
+        completed_sessions = sum(1 for session in sessions if session.status == "completed")
+
+        total_duration_ms = 0
+        for session in sessions:
+            for transcription in session.transcriptions:
+                if transcription.duration_ms:
+                    total_duration_ms += transcription.duration_ms
+
+        total_minutes = total_duration_ms / 1000 / 60 if total_duration_ms else 0.0
+        average_minutes = total_minutes / session_count if session_count else 0.0
+
+        todos = [
+            todo
+            for session in sessions
+            for todo in session.todos
+            if todo.created_at is None
+            or (report.period_start <= todo.created_at <= report.period_end)
+        ]
+        todo_created = len(todos)
+        todo_completed = sum(1 for todo in todos if (todo.status or "").lower() == "completed")
+
+        tag_counts: dict[str, dict[str, Any]] = {}
+        for session in sessions:
+            for session_tag in session.session_tags:
+                tag = session_tag.tag
+                if not tag:
+                    continue
+                entry = tag_counts.setdefault(
+                    tag.name,
+                    {"name": tag.name, "category": tag.category, "count": 0},
+                )
+                entry["count"] += 1
+        top_tags = sorted(tag_counts.values(), key=lambda item: item["count"], reverse=True)[:5]
+
+        return JourneyMetrics(
+            session_count=session_count,
+            completed_sessions=completed_sessions,
+            total_audio_minutes=round(total_minutes, 2),
+            average_session_minutes=round(average_minutes, 2),
+            todo_created=todo_created,
+            todo_completed=todo_completed,
+            top_tags=top_tags,
+            period_start=report.period_start,
+            period_end=report.period_end,
+        )
+
+    def _build_session_payload(self, sessions: list[SessionModel]) -> tuple[list[dict[str, Any]], list[str]]:
+        items: list[dict[str, Any]] = []
+        context_lines: list[str] = []
+
+        for session in sessions:
+            duration_minutes = 0.0
+            for transcription in session.transcriptions:
+                if transcription.duration_ms:
+                    duration_minutes += transcription.duration_ms / 1000 / 60
+
+            summary_text = None
+            if session.summary_run and session.summary_run.response:
+                summary_text = session.summary_run.response.strip()
+            elif session.description:
+                summary_text = session.description.strip()
+            elif session.transcriptions:
+                text = session.transcriptions[0].text or ""
+                summary_text = text[:160] + "..." if len(text) > 160 else text
+
+            tags = [
+                {"name": st.tag.name, "category": st.tag.category}  # type: ignore[union-attr]
+                for st in session.session_tags
+                if st.tag
+            ]
+
+            items.append(
+                {
+                    "id": session.id,
+                    "created_at": session.created_at.isoformat(),
+                    "status": session.status,
+                    "todo_count": len(session.todos),
+                    "duration_minutes": round(duration_minutes, 2),
+                    "summary": summary_text,
+                    "tags": tags,
+                }
             )
-        if metrics.todo_created:
-            todo_line = f"Captured {metrics.todo_created} task(s)"
-            if metrics.todo_completed:
-                todo_line += f", with {metrics.todo_completed} already completed"
-            parts.append(todo_line + ".")
-        if metrics.top_tags:
-            tag_names = ", ".join(tag["name"] for tag in metrics.top_tags[:3])
-            parts.append(f"Top themes: {tag_names}.")
 
-        return " ".join(parts)
+            if summary_text:
+                context_lines.append(f"Session {session.id}: {summary_text}")
+
+        return items, context_lines
+
+    def _build_todo_payload(
+        self, report: Report, sessions: list[SessionModel]
+    ) -> tuple[dict[str, Any], list[str]]:
+        todos = [
+            todo
+            for session in sessions
+            for todo in session.todos
+            if todo.created_at is None
+            or (report.period_start <= todo.created_at <= report.period_end)
+        ]
+
+        completion_count = sum(1 for todo in todos if (todo.status or "").lower() == "completed")
+        open_count = sum(1 for todo in todos if (todo.status or "").lower() != "completed")
+        top_todos = sorted(
+            todos,
+            key=lambda todo: todo.created_at or report.period_end,
+            reverse=True,
+        )[:5]
+
+        todo_entries = [
+            {
+                "title": todo.title,
+                "status": todo.status,
+                "confidence": todo.confidence,
+                "created_at": todo.created_at.isoformat() if todo.created_at else None,
+            }
+            for todo in top_todos
+        ]
+
+        context_lines = [
+            f"Tasks captured during the period: {len(todos)}.",
+            f"{completion_count} marked completed, {open_count} still open.",
+        ]
+        for entry in todo_entries[:3]:
+            context_lines.append(f"Task \"{entry['title']}\" status {entry['status']}.")
+
+        payload = {
+            "created": len(todos),
+            "completed": completion_count,
+            "open": open_count,
+            "highlights": todo_entries,
+        }
+        return payload, context_lines
+
+    def _completion_rate(self, metrics: JourneyMetrics) -> float:
+        if metrics.todo_created == 0:
+            return 0.0
+        return round((metrics.todo_completed / metrics.todo_created) * 100, 2)
 
 
-__all__ = ["JourneyReportBuilder", "JourneyMetrics"]
+__all__ = ["JourneyReportBuilder", "JourneyBuildResult", "JourneyMetrics"]

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Report, ReportCadence, ReportPreference, ReportStatus
 from .journey_builder import JourneyReportBuilder
+from .journey_summary import JourneySummaryGenerator
 
 
 def _add_months(base: datetime, months: int) -> datetime:
@@ -181,14 +182,17 @@ class JourneyReportService:
 
     def generate_report(self, report: Report) -> Report:
         builder = JourneyReportBuilder(self.db)
+        summary_generator = JourneySummaryGenerator()
+
         self.mark_report_progress(report=report, status=ReportStatus.IN_PROGRESS)
-        payload = builder.build_payload(report)
-        summary = payload.get("summary") or ""
+        result = builder.build(report)
+        summary_text = summary_generator.generate(result)
+
         self.mark_report_progress(
             report=report,
             status=ReportStatus.COMPLETED,
-            summary=summary,
-            payload=payload,
+            summary=summary_text,
+            payload=result.payload,
         )
         self._update_preference_after_generation(report)
         return report
