@@ -33,6 +33,7 @@ interface FormState {
   cadence: JourneyCadence;
   timezone: string;
   is_active: boolean;
+  email_enabled: boolean;
 }
 
 function formatDate(
@@ -123,6 +124,7 @@ export default function JourneysView() {
         cadence: pref.cadence,
         timezone: pref.timezone ?? "UTC",
         is_active: pref.is_active,
+        email_enabled: pref.email_enabled ?? true,
       });
 
       await loadReports();
@@ -155,6 +157,7 @@ export default function JourneysView() {
       cadence: formState.cadence,
       timezone: formState.timezone,
       is_active: formState.is_active,
+      email_enabled: formState.email_enabled,
     };
 
     try {
@@ -164,6 +167,7 @@ export default function JourneysView() {
         cadence: updated.cadence,
         timezone: updated.timezone,
         is_active: updated.is_active,
+        email_enabled: updated.email_enabled,
       });
       setStatusMessage("Preferences saved successfully.");
     } catch (err) {
@@ -349,6 +353,15 @@ export default function JourneysView() {
                 className="h-4 w-4 accent-gold border border-gold/40 bg-black-soft"
               />
               Enable scheduled Journeys
+            </label>
+            <label className="flex items-center gap-3 text-sm text-bone mt-4 md:mt-0">
+              <input
+                type="checkbox"
+                checked={formState.email_enabled}
+                onChange={(event) => handlePreferenceChange("email_enabled", event.target.checked)}
+                className="h-4 w-4 accent-gold border border-gold/40 bg-black-soft"
+              />
+              Email me each Journey report
             </label>
           </div>
 

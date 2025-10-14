@@ -90,6 +90,18 @@ class Settings(BaseSettings):
         default=0.35, validation_alias="TODO_CONFIDENCE_THRESHOLD"
     )
     developer_mode: bool = Field(default=False, validation_alias="SPEAKLY_DEVELOPER_MODE")
+
+    # Journey report email delivery (Brevo)
+    report_email_enabled: bool = Field(
+        default=False, validation_alias="REPORT_EMAIL_ENABLED"
+    )
+    report_email_from_email: str | None = Field(
+        default=None, validation_alias="REPORT_EMAIL_FROM_EMAIL"
+    )
+    report_email_from_name: str | None = Field(
+        default=None, validation_alias="REPORT_EMAIL_FROM_NAME"
+    )
+    brevo_api_key: str | None = Field(default=None, validation_alias="BREVO_API_KEY")
     
     # Clerk Authentication (backend only needs secret key for JWT verification)
     clerk_secret_key: str | None = Field(default=None, validation_alias="CLERK_SECRET_KEY")

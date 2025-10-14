@@ -314,6 +314,7 @@ export interface JourneyPreference {
   timezone: string;
   delivery_channels: string[] | null;
   is_active: boolean;
+  email_enabled: boolean;
   last_generated_at: string | null;
   next_scheduled_at: string | null;
   created_at: string;
@@ -325,6 +326,7 @@ export interface JourneyPreferenceUpdateRequest {
   timezone?: string | null;
   delivery_channels?: string[] | null;
   is_active?: boolean;
+  email_enabled?: boolean;
 }
 
 export interface JourneyReport {

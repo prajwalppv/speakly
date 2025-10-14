@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..models import Report, ReportCadence, ReportPreference, ReportStatus
 from .journey_builder import JourneyReportBuilder
 from .journey_summary import JourneySummaryGenerator
+from .email_sender import send_journey_report_email
 
 
 def _add_months(base: datetime, months: int) -> datetime:
@@ -103,6 +104,7 @@ class JourneyReportService:
         timezone: str = "UTC",
         delivery_channels: Iterable[str] | None = None,
         is_active: bool = True,
+        email_enabled: bool = True,
     ) -> ReportPreference:
         preference = self.get_preference(user_id=user_id)
         now = datetime.utcnow()
@@ -114,6 +116,7 @@ class JourneyReportService:
                 timezone=timezone,
                 delivery_channels=list(delivery_channels or []),
                 is_active=is_active,
+                email_enabled=email_enabled,
                 last_generated_at=None,
                 next_scheduled_at=_calculate_next_run(now, cadence),
             )
@@ -123,6 +126,7 @@ class JourneyReportService:
             preference.timezone = timezone
             preference.delivery_channels = list(delivery_channels or [])
             preference.is_active = is_active
+            preference.email_enabled = email_enabled
             preference.next_scheduled_at = _calculate_next_run(now, cadence)
 
         self.db.flush()
@@ -212,6 +216,7 @@ class JourneyReportService:
         summary_text = summary_generator.generate(result)
         period_info = result.payload.setdefault("metrics", {}).setdefault("period", {})
         period_info.setdefault("timezone", timezone_name)
+        result.payload.setdefault("summary", summary_text)
 
         self.mark_report_progress(
             report=report,
@@ -219,6 +224,7 @@ class JourneyReportService:
             summary=summary_text,
             payload=result.payload,
         )
+        send_journey_report_email(report, result)
         self._update_preference_after_generation(report)
         return report
 

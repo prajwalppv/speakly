@@ -329,6 +329,7 @@ class ReportPreference(Base, TimestampMixin):
     timezone = Column(String, nullable=False, default="UTC", server_default="UTC")
     delivery_channels = Column(JSON, nullable=True, default=list)
     is_active = Column(Boolean, nullable=False, default=True, server_default=expression.true())
+    email_enabled = Column(Boolean, nullable=False, default=True, server_default=expression.true())
     last_generated_at = Column(DateTime, nullable=True)
     next_scheduled_at = Column(DateTime, nullable=True)
 

@@ -67,6 +67,7 @@ def update_journey_preference(
         timezone=timezone,
         delivery_channels=payload.delivery_channels,
         is_active=payload.is_active,
+        email_enabled=payload.email_enabled,
     )
     db.commit()
     return preference

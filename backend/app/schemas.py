@@ -217,6 +217,7 @@ class ReportPreferenceRequest(BaseModel):
     timezone: str | None = Field(default=None, description="IANA timezone, defaults to UTC")
     delivery_channels: list[str] | None = Field(default=None)
     is_active: bool = Field(default=True)
+    email_enabled: bool = Field(default=True)
 
 
 class ReportPreferenceResponse(UTCBaseModel):
@@ -226,6 +227,7 @@ class ReportPreferenceResponse(UTCBaseModel):
     timezone: str
     delivery_channels: list[str] | None
     is_active: bool
+    email_enabled: bool
     last_generated_at: datetime | None
     next_scheduled_at: datetime | None
     created_at: datetime

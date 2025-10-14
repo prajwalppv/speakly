@@ -34,6 +34,7 @@ def test_get_preference_creates_default(journeys_client, test_db):
     assert data["cadence"] == ReportCadence.WEEKLY.value
     assert data["timezone"] == "UTC"
     assert data["is_active"] is True
+    assert data["email_enabled"] is True
 
     pref = test_db.query(ReportPreference).filter_by(user_id=data["user_id"]).one()
     assert pref.cadence == ReportCadence.WEEKLY.value
@@ -161,7 +162,8 @@ def _seed_journey_data(test_db):
     test_db.commit()
 
 
-def test_generate_report_updates_schedule(journeys_client, test_db):
+def test_generate_report_updates_schedule(journeys_client, test_db, monkeypatch):
+    monkeypatch.setattr("app.services.journeys.send_journey_report_email", lambda report, payload: None)
     journeys_client.get("/api/journeys/preferences")
     _seed_journey_data(test_db)
 
@@ -183,7 +185,14 @@ def test_generate_report_updates_schedule(journeys_client, test_db):
     assert pref.next_scheduled_at is not None
 
 
-def test_trigger_report_generation_populates_report(journeys_client, test_db):
+def test_trigger_report_generation_populates_report(journeys_client, test_db, monkeypatch):
+    email_called: dict[str, bool] = {"value": False}
+
+    def fake_send(report, payload):
+        email_called["value"] = True
+
+    monkeypatch.setattr("app.services.journeys.send_journey_report_email", fake_send)
+
     journeys_client.get("/api/journeys/preferences")
     _seed_journey_data(test_db)
 
@@ -202,3 +211,4 @@ def test_trigger_report_generation_populates_report(journeys_client, test_db):
     assert report.status == ReportStatus.COMPLETED.value
     assert report.summary
     assert report.payload
+    assert email_called["value"] is True
