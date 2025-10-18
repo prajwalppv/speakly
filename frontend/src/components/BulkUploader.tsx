@@ -1,8 +1,9 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadAudioBulk, SessionRecord, fetchSessions, fetchSession, editTranscription, regenerateSession } from "../api";
 import TranscriptEditor from "./TranscriptEditor";
 import TaskManager from "./TaskManager";
+import AudioRecorder from "./AudioRecorder";
 import Toast, { ToastType } from "./Toast";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,15 +18,52 @@ interface UploadProgress {
   session?: SessionRecord;
 }
 
+const fileSignature = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
+
 export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<UploadProgress[]>([]);
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [showRecorder, setShowRecorder] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const showToast = (message: string, type: ToastType) => {
+  const showToast = useCallback((message: string, type: ToastType) => {
     setToast({ message, type });
+  }, []);
+
+  const addFiles = useCallback((incomingFiles: File[]) => {
+    if (incomingFiles.length === 0) return;
+
+    const existingSignatures = new Set(files.map(fileSignature));
+    const freshFiles = incomingFiles.filter(
+      (file) => !existingSignatures.has(fileSignature(file))
+    );
+
+    if (freshFiles.length === 0) {
+      showToast("Those files are already queued for upload.", "info");
+      return;
+    }
+
+    if (freshFiles.length < incomingFiles.length) {
+      showToast("Skipped files that were already in your queue.", "info");
+    }
+
+    setFiles((prev) => [...prev, ...freshFiles]);
+    setProgress((prev) => [
+      ...prev,
+      ...freshFiles.map((f) => ({
+        fileName: f.name,
+        status: "pending" as const,
+      })),
+    ]);
+  }, [files, showToast]);
+
+  const resetFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const refreshSession = async (sessionId: number) => {
@@ -121,13 +159,8 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selectedFiles = Array.from(e.target.files);
-      setFiles(selectedFiles);
-      setProgress(
-        selectedFiles.map((f) => ({
-          fileName: f.name,
-          status: "pending",
-        }))
-      );
+      addFiles(selectedFiles);
+      resetFileInput();
     }
   };
 
@@ -175,12 +208,14 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
   const handleClear = () => {
     setFiles([]);
     setProgress([]);
+    resetFileInput();
   };
 
   const handleUploadMore = () => {
     // Reset for new upload
     setFiles([]);
     setProgress([]);
+    resetFileInput();
   };
 
   const hasResults = progress.length > 0 && !uploading;
@@ -268,6 +303,11 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
     return () => clearInterval(interval);
   }, [progress.map(p => `${p.sessionId}:${p.session?.status || 'none'}`).join(',')]);
 
+  const handleRecordingComplete = useCallback((file: File) => {
+    addFiles([file]);
+    showToast("Recording added to your upload list.", "success");
+  }, [addFiles, showToast]);
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-6 space-y-6">
       {/* Main Upload Card */}
@@ -315,6 +355,7 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
             <input
               type="file"
               id="bulk-file-input"
+              ref={fileInputRef}
               multiple
               accept="audio/*"
               onChange={handleFileSelect}
@@ -371,6 +412,38 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
               </AnimatePresence>
             </label>
           </motion.div>
+
+          {/* Optional in-browser recorder */}
+          <div className="space-y-3">
+            <motion.button
+              whileHover={{ scale: uploading ? 1 : 1.03 }}
+              whileTap={{ scale: uploading ? 1 : 0.97 }}
+              onClick={() => setShowRecorder((prev) => !prev)}
+              disabled={uploading}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
+                "border border-gold text-gold hover:bg-gold hover:text-black",
+                uploading && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-gold"
+              )}
+            >
+              <Mic2 size={18} />
+              {showRecorder ? "Hide Recorder" : "Record a Voice Note"}
+            </motion.button>
+            <AnimatePresence>
+              {showRecorder && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                >
+                  <AudioRecorder
+                    onRecordingComplete={handleRecordingComplete}
+                    onCancel={() => setShowRecorder(false)}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Action Buttons */}
           <div className="flex gap-3 justify-end">
