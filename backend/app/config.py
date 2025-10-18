@@ -57,6 +57,16 @@ class Settings(BaseSettings):
     # LLM Configuration (Groq for production, Ollama for local dev)
     groq_api_key: str | None = Field(default=None, validation_alias="GROQ_API_KEY")
     groq_model: str = Field(default="llama-3.3-70b-versatile", validation_alias="GROQ_MODEL")
+    groq_chunk_duration_seconds: int = Field(
+        default=600,
+        validation_alias="GROQ_CHUNK_DURATION_SECONDS",
+        description="Chunk length (seconds) when splitting large audio for Groq STT"
+    )
+    groq_max_file_mb: float = Field(
+        default=24.0,
+        validation_alias="GROQ_MAX_FILE_MB",
+        description="Maximum file size in megabytes to send to Groq STT without chunking"
+    )
     ollama_base_url: str | None = Field(default=None, validation_alias="OLLAMA_BASE_URL")
     ollama_model_summary: str = Field(default="llama3", validation_alias="OLLAMA_MODEL_SUMMARY")
     ollama_model_todo: str = Field(default="llama3", validation_alias="OLLAMA_MODEL_TODO")

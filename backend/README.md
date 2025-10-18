@@ -29,6 +29,7 @@
 - Python 3.11+
 - PostgreSQL (for production)
 - ElevenLabs API key
+- ffmpeg (required for Groq STT chunking of large audio files)
 - Ollama (for AI features)
 
 ### Local Development

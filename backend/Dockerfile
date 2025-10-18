@@ -12,6 +12,7 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     build-essential \
     libpq-dev \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements-dev.txt /tmp/requirements-dev.txt

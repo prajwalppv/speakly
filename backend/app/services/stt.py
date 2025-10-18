@@ -11,7 +11,9 @@ import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
-
+import shutil
+import subprocess
+import tempfile
 import httpx
 try:  # pragma: no cover - optional dependency for Groq provider
     from groq import Groq  # type: ignore
@@ -120,19 +122,132 @@ class GroqSttProvider(SttProvider):
         # Check file size (Groq has 25MB limit)
         file_size = audio_path.stat().st_size
         file_size_mb = file_size / (1024 * 1024)
+        max_mb = getattr(settings, "groq_max_file_mb", 24.0) or 24.0
         
-        if file_size_mb > 25:
-            raise SttError(f"Audio file too large: {file_size_mb:.2f}MB (max 25MB)")
+        if file_size_mb > max_mb:
+            logger.info(
+                "Groq STT: audio file is %.2fMB (limit %.2fMB) – attempting chunked transcription",
+                file_size_mb,
+                max_mb,
+            )
+            return self._transcribe_large_file(audio_path=audio_path, metadata=metadata)
 
         logger.info(f"Transcribing with Groq Whisper: {audio_path.name} ({file_size_mb:.2f}MB)")
+        result = self._transcribe_single_file(audio_path=audio_path, metadata=metadata)
+        logger.info(
+            "Groq transcription completed (single file): %s chars",
+            len(result["transcription_text"]) if result.get("transcription_text") else 0,
+        )
+        return result
+
+    def _transcribe_single_file(
+        self,
+        *,
+        audio_path: Path,
+        metadata: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        groq_result = self._call_groq(audio_path=audio_path, metadata=metadata)
+        return {
+            "provider": "groq",
+            "model": self._model,
+            "transcription_text": groq_result["text"],
+            "duration": groq_result.get("duration"),
+            "language": groq_result.get("language", "en"),
+            "metadata": metadata,
+            "is_sync": True,
+        }
+
+    def _transcribe_large_file(
+        self,
+        *,
+        audio_path: Path,
+        metadata: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        chunk_duration = max(int(getattr(settings, "groq_chunk_duration_seconds", 600) or 600), 60)
+        if shutil.which("ffmpeg") is None:
+            raise SttError(
+                "Groq STT: ffmpeg is required to split large audio files. "
+                "Install ffmpeg or reduce the file size."
+            )
+
+        with tempfile.TemporaryDirectory(prefix="speakly-groq-chunks-") as tmpdir:
+            chunk_dir = Path(tmpdir)
+            chunk_paths = self._split_audio_file(
+                audio_path=audio_path,
+                output_dir=chunk_dir,
+                segment_seconds=chunk_duration,
+            )
+
+            chunk_details: list[dict[str, Any]] = []
+            combined_text_parts: list[str] = []
+            total_duration = 0.0
+            language = "en"
+
+            for index, chunk_path in enumerate(chunk_paths, start=1):
+                chunk_metadata = dict(metadata or {})
+                chunk_metadata["chunk_index"] = index
+                chunk_metadata["chunk_count"] = len(chunk_paths)
+                groq_result = self._call_groq(audio_path=chunk_path, metadata=chunk_metadata)
+
+                chunk_text = groq_result["text"]
+                combined_text_parts.append(chunk_text)
+
+                logger.info(
+                    "Groq chunk %s/%s transcribed (%s chars)",
+                    index,
+                    len(chunk_paths),
+                    len(chunk_text),
+                )
+
+                chunk_duration_value = groq_result.get("duration")
+                if isinstance(chunk_duration_value, (int, float)):
+                    total_duration += float(chunk_duration_value)
+
+                language = groq_result.get("language", language) or language
+
+                chunk_details.append(
+                    {
+                        "chunk_index": index,
+                        "filename": chunk_path.name,
+                        "text_length": len(chunk_text),
+                        "duration": chunk_duration_value,
+                    }
+                )
+
+        combined_text = "\n\n".join(part for part in combined_text_parts if part)
+        merged_metadata: dict[str, Any] = {
+            "chunk_count": len(chunk_details),
+            "chunks": chunk_details,
+        }
+        if metadata:
+            merged_metadata["original_metadata"] = metadata
+
+        logger.info(
+            "Groq transcription completed with chunking: %s chunks, %s chars",
+            len(chunk_details),
+            len(combined_text),
+        )
+
+        return {
+            "provider": "groq",
+            "model": self._model,
+            "transcription_text": combined_text,
+            "duration": total_duration or None,
+            "language": language,
+            "metadata": merged_metadata,
+            "is_sync": True,
+        }
+
+    def _call_groq(
+        self,
+        *,
+        audio_path: Path,
+        metadata: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        client = self._get_client()
+        normalized_filename = audio_path.stem + audio_path.suffix.lower()
 
         try:
-            # Use the Groq SDK for simpler, more reliable file uploads
-            client = self._get_client()
-            # Normalize filename to lowercase extension for Groq API compatibility
-            # Groq expects lowercase extensions (.wav not .WAV)
-            normalized_filename = audio_path.stem + audio_path.suffix.lower()
-            
             with open(audio_path, "rb") as audio_file:
                 transcription = client.audio.transcriptions.create(
                     file=(normalized_filename, audio_file),
@@ -144,22 +259,61 @@ class GroqSttProvider(SttProvider):
             logger.error(f"Groq transcription error: {exc}")
             raise SttError(f"Transcription failed: {exc}") from exc
 
-        # Extract transcription text
         transcription_text = transcription.text if hasattr(transcription, 'text') else str(transcription)
-        
-        logger.info(f"Groq transcription completed: {len(transcription_text)} characters")
 
-        # Return in a format similar to ElevenLabs async response
-        # but include the actual transcription since it's synchronous
         return {
-            "provider": "groq",
-            "model": self._model,
-            "transcription_text": transcription_text,
-            "duration": getattr(transcription, 'duration', None),
-            "language": getattr(transcription, 'language', 'en'),
+            "text": transcription_text,
+            "duration": getattr(transcription, "duration", None),
+            "language": getattr(transcription, "language", "en"),
             "metadata": metadata,
-            "is_sync": True,  # Flag to indicate synchronous response
         }
+
+    def _split_audio_file(
+        self,
+        *,
+        audio_path: Path,
+        output_dir: Path,
+        segment_seconds: int,
+    ) -> list[Path]:
+        output_pattern = output_dir / "chunk_%03d.wav"
+        command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(audio_path),
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-f",
+            "segment",
+            "-segment_time",
+            str(segment_seconds),
+            "-c:a",
+            "pcm_s16le",
+            str(output_pattern),
+        ]
+
+        logger.debug("Groq chunking command: %s", " ".join(str(part) for part in command))
+
+        process = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        if process.returncode != 0:
+            stderr = process.stderr.decode("utf-8", errors="ignore")
+            raise SttError(
+                "Failed to split audio file with ffmpeg "
+                f"(exit code {process.returncode}): {stderr.strip()}"
+            )
+
+        chunk_paths = sorted(output_dir.glob("chunk_*.wav"))
+        if not chunk_paths:
+            raise SttError("Audio chunking produced no output files.")
+
+        return chunk_paths
 
 
 class ElevenLabsSttProvider(SttProvider):
