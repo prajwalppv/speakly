@@ -11,6 +11,7 @@
 ## ✨ Features
 
 - 🎤 **Audio Upload** - Drag & drop or click to upload
+- 🎧 **Voice Recorder** - Capture a note in-browser and queue it instantly
 - 📦 **Bulk Upload** - Process up to 50 files with timestamp ordering
 - 📊 **Sessions Dashboard** - View all recordings with AI summaries
 - ✅ **Task Management** - Auto-extracted todos with TickTick sync
@@ -118,6 +119,7 @@ The app automatically handles dev vs production:
 - Timestamp-based ordering
 - Error handling per file
 - Auto-clear on success
+- Integrated browser-based voice recorder that feeds the upload queue
 
 **Usage:**
 ```tsx
