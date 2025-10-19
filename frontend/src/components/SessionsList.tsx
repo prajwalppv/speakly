@@ -810,6 +810,106 @@ export default function SessionsList({
           const isRegenerating = regeneratingSessionId === session.id;
           const isSelected = selectedSessions.has(session.id);
 
+          const renderActions = (variant: "desktop" | "mobile") => {
+            const isMobile = variant === "mobile";
+            const copyButtonBase = isMobile
+              ? "p-2 rounded-lg flex items-center justify-center border border-blue/30 text-blue bg-blue/15 hover:bg-blue/25"
+              : "px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border border-blue/30 text-blue bg-blue/15 hover:bg-blue/25";
+            const deleteButtonBase = isMobile
+              ? "p-2 rounded-lg flex items-center justify-center border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition"
+              : "px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition";
+            const todoBadgeBase = isMobile
+              ? "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-green/15 text-green border border-green/30"
+              : "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green/15 text-green border border-green/30";
+
+            return (
+              <>
+                {hasSummary && (
+                  <motion.button
+                    onClick={(e) => handleCopySummary(e, session)}
+                    className={cn(
+                      copyButtonBase,
+                      copiedSummaryId === session.id &&
+                        "bg-green/20 text-green border-green/30",
+                    )}
+                    title="Copy AI Summary"
+                    aria-label="Copy AI Summary"
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                  >
+                    {copiedSummaryId === session.id ? (
+                      <Check size={isMobile ? 18 : 14} />
+                    ) : (
+                      <Copy size={isMobile ? 18 : 14} />
+                    )}
+                    {isMobile ? (
+                      <span className="sr-only">
+                        {copiedSummaryId === session.id
+                          ? "Summary copied"
+                          : "Copy AI summary"}
+                      </span>
+                    ) : (
+                      <span>
+                        {copiedSummaryId === session.id ? "Copied" : "Copy"}
+                      </span>
+                    )}
+                  </motion.button>
+                )}
+                {(session.todo_count > 0 || session.todos.length > 0) && (
+                  <span className={todoBadgeBase}>
+                    <CheckSquare size={isMobile ? 16 : 12} />
+                    <span>{session.todo_count || session.todos.length}</span>
+                  </span>
+                )}
+                <motion.button
+                  onClick={(e) => handleDeleteSession(e, session.id)}
+                  disabled={deletingSessionId === session.id}
+                  className={cn(
+                    deleteButtonBase,
+                    deletingSessionId === session.id &&
+                      "opacity-60 cursor-wait",
+                  )}
+                  whileHover={
+                    deletingSessionId === session.id ? {} : { scale: 1.04 }
+                  }
+                  whileTap={
+                    deletingSessionId === session.id ? {} : { scale: 0.96 }
+                  }
+                >
+                  {deletingSessionId === session.id ? (
+                    <Loader2
+                      size={isMobile ? 18 : 14}
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <Trash2 size={isMobile ? 18 : 14} />
+                  )}
+                  {isMobile ? (
+                    <span className="sr-only">Delete recording</span>
+                  ) : (
+                    <span>Delete</span>
+                  )}
+                </motion.button>
+                <motion.button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleExpand(session.id);
+                  }}
+                  className={cn(
+                    "p-2 text-gold hover:bg-gold/10 rounded-lg transition-colors",
+                    isMobile && "ml-auto",
+                  )}
+                  animate={{ rotate: isExpanded ? 90 : 0 }}
+                >
+                  <ChevronRight size={isMobile ? 18 : 20} />
+                  <span className="sr-only">
+                    {isExpanded ? "Collapse session" : "Expand session"}
+                  </span>
+                </motion.button>
+              </>
+            );
+          };
+
           return (
             <motion.div
               key={session.id}
@@ -827,10 +927,10 @@ export default function SessionsList({
             >
               {/* Compact view */}
               <div
-                className="p-4 flex flex-col gap-3"
+                className="p-4 flex flex-col gap-4 sm:gap-3"
                 onClick={() => toggleExpand(session.id)}
               >
-                <div className="flex flex-wrap items-start gap-3">
+                <div className="flex items-start gap-3">
                   <div className="shrink-0 pt-1">
                     <input
                       type="checkbox"
@@ -840,25 +940,34 @@ export default function SessionsList({
                       className="h-4 w-4 rounded border-gold/40 bg-black text-gold focus:ring-gold cursor-pointer"
                     />
                   </div>
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xl text-gold/80">
-                        {getStatusIcon(session.status)}
-                      </span>
-                      <h3 className="text-lg font-display font-semibold text-bone truncate max-w-full">
-                        {getSessionTitle(session)}
-                      </h3>
-                      {renderReviewBadge(session)}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-bone-dim">
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} />
-                        {formatTime(session.created_at)}
-                      </span>
-                      {renderStatusBadge(session)}
+                  <div className="flex-1 min-w-0 space-y-3">
+                    <div className="flex flex-wrap items-start gap-3">
+                      <div className="flex items-start gap-2 min-w-0 flex-1">
+                        <span className="text-xl text-gold/80">
+                          {getStatusIcon(session.status)}
+                        </span>
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-display font-semibold text-bone truncate">
+                              {getSessionTitle(session)}
+                            </h3>
+                            {renderReviewBadge(session)}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-bone-dim">
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} />
+                              {formatTime(session.created_at)}
+                            </span>
+                            {renderStatusBadge(session)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="hidden sm:flex items-center gap-2 ml-auto flex-wrap justify-end">
+                        {renderActions("desktop")}
+                      </div>
                     </div>
                     {session.tags && session.tags.length > 0 && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="flex items-center gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible pr-2 -mr-2 sm:pr-0 sm:mr-0">
                         {session.tags
                           .slice(0, isExpanded ? session.tags.length : 3)
                           .map((tag) => (
@@ -871,75 +980,16 @@ export default function SessionsList({
                             />
                           ))}
                         {!isExpanded && session.tags.length > 3 && (
-                          <span className="text-xs text-gold px-2 py-0.5 bg-gold/20 rounded-full">
+                          <span className="text-xs text-gold px-2 py-0.5 bg-gold/20 rounded-full flex-shrink-0">
                             +{session.tags.length - 3} more
                           </span>
                         )}
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 ml-auto flex-wrap justify-end">
-                    {hasSummary && (
-                      <motion.button
-                        onClick={(e) => handleCopySummary(e, session)}
-                        className={cn(
-                          "px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition",
-                          copiedSummaryId === session.id
-                            ? "bg-green/20 text-green border-green/30"
-                            : "bg-blue/15 text-blue border-blue/30 hover:bg-blue/25",
-                        )}
-                        title="Copy AI Summary"
-                        aria-label="Copy AI Summary"
-                        whileHover={{ scale: 1.04 }}
-                        whileTap={{ scale: 0.96 }}
-                      >
-                        {copiedSummaryId === session.id ? (
-                          <Check size={14} />
-                        ) : (
-                          <Copy size={14} />
-                        )}
-                        {copiedSummaryId === session.id ? "Copied" : "Copy"}
-                      </motion.button>
-                    )}
-                    {(session.todo_count > 0 || session.todos.length > 0) && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green/15 text-green border border-green/30">
-                        <CheckSquare size={12} />
-                        {session.todo_count || session.todos.length}
-                      </span>
-                    )}
-                    <motion.button
-                      onClick={(e) => handleDeleteSession(e, session.id)}
-                      disabled={deletingSessionId === session.id}
-                      className={cn(
-                        "px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition",
-                        deletingSessionId === session.id &&
-                          "opacity-60 cursor-wait",
-                      )}
-                      whileHover={
-                        deletingSessionId === session.id ? {} : { scale: 1.04 }
-                      }
-                      whileTap={
-                        deletingSessionId === session.id ? {} : { scale: 0.96 }
-                      }
-                    >
-                      {deletingSessionId === session.id ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Trash2 size={14} />
-                      )}
-                      Delete
-                    </motion.button>
-                    <motion.button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleExpand(session.id);
-                      }}
-                      className="p-2 text-gold hover:bg-gold/10 rounded-lg transition-colors"
-                      animate={{ rotate: isExpanded ? 90 : 0 }}
-                    >
-                      <ChevronRight size={20} />
-                    </motion.button>
-                  </div>
+                </div>
+                <div className="flex items-center gap-2 sm:hidden">
+                  {renderActions("mobile")}
                 </div>
               </div>
 
