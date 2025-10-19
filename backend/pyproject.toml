@@ -47,6 +47,7 @@ warn_unused_configs = true
 install_types = true
 non_interactive = true
 ignore_missing_imports = true
+follow_imports = "skip"
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]

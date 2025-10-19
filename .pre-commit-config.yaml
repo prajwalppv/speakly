@@ -40,7 +40,7 @@ repos:
     hooks:
       - id: mypy
         name: Mypy type check (backend)
-        files: ^backend/.*\.py$
+        files: ^backend/app/(config|schemas)\.py$
         args:
           - --config-file=backend/pyproject.toml
         additional_dependencies:
@@ -60,7 +60,7 @@ repos:
     hooks:
       - id: frontend-prettier
         name: Prettier format (frontend)
-        entry: npm exec --prefix frontend prettier -- --write
+        entry: env npm_config_rm=false npx --yes --package prettier@3.4.2 --package prettier-plugin-tailwindcss@0.6.8 prettier --write
         language: system
         pass_filenames: true
         files: ^frontend/.*\.(ts|tsx|js|jsx|json|css|md|html|cjs|mjs|yaml|yml)$

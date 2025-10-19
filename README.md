@@ -188,6 +188,7 @@ uv run pytest tests/ -v
 - Register the git hooks: `uv run pre-commit install` and `uv run pre-commit install --hook-type pre-push`.
 - Run `uv run pre-commit run --all-files` before opening a PR to bootstrap the hook environments.
 - On commit the hooks format Python (isort + Black) and frontend assets (Prettier), upgrade syntax, and type-check the React code while Ruff handles linting; mypy runs to catch type issues with auto-installed stubs.
+- Prettier runs via `npx`, so the first commit may download its toolchain (cached afterward).
 - On push the backend test suite executes via `pytest` to catch regressions before CI.
 
 ---
