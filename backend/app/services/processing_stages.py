@@ -16,6 +16,7 @@ ProcessingStage = Literal[
     "summarizing",
     "extracting_tasks",
     "tagging",
+    "review",
     "syncing_tasks",
     "completed",
     "error"
@@ -35,6 +36,7 @@ class ProcessingStages:
             "summarizing": {"status": "pending", "timestamp": None},
             "extracting_tasks": {"status": "pending", "timestamp": None},
             "tagging": {"status": "pending", "timestamp": None},
+            "review": {"status": "pending", "timestamp": None},
             "syncing_tasks": {"status": "pending", "timestamp": None},
         }
     
@@ -81,6 +83,7 @@ class ProcessingStages:
             "summarizing",
             "extracting_tasks",
             "tagging",
+            "review",
             "syncing_tasks",
         ]
         
@@ -122,6 +125,7 @@ class ProcessingStages:
             "summarizing",
             "extracting_tasks",
             "tagging",
+            "review",
             "syncing_tasks",
         ]
         

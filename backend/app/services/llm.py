@@ -7,6 +7,7 @@ import textwrap
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
+from datetime import datetime
 import httpx
 try:  # pragma: no cover - optional dependency at runtime
     from groq import Groq  # type: ignore
@@ -25,6 +26,7 @@ from ..models import Session as SessionModel, Transcription, LlmRun, Todo
 from ..config import settings
 from .metrics import track_performance, log_errors
 from .task_sync_service import schedule_task_sync
+from sqlalchemy.orm import joinedload
 
 logger = logging.getLogger(__name__)
 
@@ -590,7 +592,6 @@ def _generate_summary(service: LlmService, summary_run: LlmRun, transcript: str,
         session.summary_run = summary_run
         
         # Update processing stages
-        from datetime import datetime
         if session.processing_stages:
             stages = session.processing_stages.copy()
             stages["summarizing"] = {"status": "completed", "timestamp": datetime.utcnow().isoformat()}
@@ -602,7 +603,6 @@ def _generate_summary(service: LlmService, summary_run: LlmRun, transcript: str,
         logger.exception("Failed to generate summary")
         
         # Mark stage as failed
-        from datetime import datetime
         if session.processing_stages:
             stages = session.processing_stages.copy()
             stages["summarizing"] = {
@@ -633,7 +633,6 @@ def _extract_and_create_todos(
         todo_run.status = "completed"
         
         # Update processing stages
-        from datetime import datetime
         if session.processing_stages:
             stages = session.processing_stages.copy()
             stages["extracting_tasks"] = {"status": "completed", "timestamp": datetime.utcnow().isoformat()}
@@ -644,7 +643,6 @@ def _extract_and_create_todos(
         logger.exception("Failed to extract todos")
         
         # Mark stage as failed
-        from datetime import datetime
         if session.processing_stages:
             stages = session.processing_stages.copy()
             stages["extracting_tasks"] = {
@@ -704,7 +702,12 @@ def _run_summary_and_todos(session_id: int, transcription_id: int) -> None:
 
     with SessionLocal() as db:
         # Fetch session and transcription
-        session = db.query(SessionModel).filter_by(id=session_id).one_or_none()
+        session = (
+            db.query(SessionModel)
+            .options(joinedload(SessionModel.user))
+            .filter_by(id=session_id)
+            .one_or_none()
+        )
         transcription = (
             db.query(Transcription).filter_by(id=transcription_id).one_or_none()
         )
@@ -717,6 +720,9 @@ def _run_summary_and_todos(session_id: int, transcription_id: int) -> None:
             return
 
         transcript = transcription.text
+        auto_approve = True
+        if session.user and session.user.auto_approve_sessions is not None:
+            auto_approve = bool(session.user.auto_approve_sessions)
 
         # Create summary run record
         summary_run = LlmRun(
@@ -732,15 +738,16 @@ def _run_summary_and_todos(session_id: int, transcription_id: int) -> None:
 
         # Update stage: diarizing complete, summarizing starts
         if session.processing_stages:
-            from datetime import datetime
-            session.processing_stages["diarizing"] = {
+            stages = session.processing_stages.copy()
+            stages["diarizing"] = {
                 "status": "completed",
                 "timestamp": datetime.utcnow().isoformat()
             }
-            session.processing_stages["summarizing"] = {
+            stages["summarizing"] = {
                 "status": "in_progress",
                 "timestamp": datetime.utcnow().isoformat()
             }
+            session.processing_stages = stages
             db.commit()
         
         # Track failed stages for final status
@@ -795,21 +802,23 @@ def _run_summary_and_todos(session_id: int, transcription_id: int) -> None:
         
         # Update stage: extracting tasks complete, syncing tasks starts
         if session.processing_stages:
-            session.processing_stages["extracting_tasks"] = {
+            stages = session.processing_stages.copy()
+            stages["extracting_tasks"] = {
                 "status": "completed",
                 "timestamp": datetime.utcnow().isoformat()
             }
             if created > 0 or task_updates:
-                session.processing_stages["syncing_tasks"] = {
-                    "status": "in_progress",
-                    "timestamp": datetime.utcnow().isoformat()
+                stages["syncing_tasks"] = {
+                    "status": "pending",
+                    "timestamp": None
                 }
             else:
                 # No tasks to sync
-                session.processing_stages["syncing_tasks"] = {
+                stages["syncing_tasks"] = {
                     "status": "completed",
                     "timestamp": datetime.utcnow().isoformat()
                 }
+            session.processing_stages = stages
         
         db.commit()
         
@@ -858,36 +867,90 @@ def _run_summary_and_todos(session_id: int, transcription_id: int) -> None:
                     session.processing_stages = stages
                     db.commit()
         
-        # Schedule sync for new TODOs and task updates
-        if created > 0 or task_updates:
-            schedule_task_sync(session.id, task_updates=task_updates)
-            # Keep status as "processing" - task sync will set to "completed" when done
-            # Store failed stages for task sync to use
-            if failed_stages:
-                session.last_error = f"Partial processing failure in stages: {', '.join(failed_stages)}"
-                db.commit()
-            
-            logger.info(
-                f"Session {session.id} LLM processing done, task sync pending" + 
-                (f" (failed stages: {', '.join(failed_stages)})" if failed_stages else ""),
-                extra={"session_id": session.id, "failed_stages": failed_stages}
-            )
-        else:
-            # No tasks to sync, mark as completed now
-            if failed_stages:
-                session.status = "completed_with_warnings"
-                session.last_error = f"Partial processing failure in stages: {', '.join(failed_stages)}"
-                logger.warning(
-                    f"Session {session.id} completed with warnings: {', '.join(failed_stages)}",
+        has_tasks_to_sync = bool(created > 0 or task_updates)
+
+        if failed_stages:
+            session.last_error = f"Partial processing failure in stages: {', '.join(failed_stages)}"
+        elif session.last_error and "Partial processing failure" in session.last_error:
+            # Clear stale warnings if latest run succeeded fully
+            session.last_error = None
+
+        if auto_approve:
+            session.review_status = "auto_approved"
+            session.reviewed_at = datetime.utcnow()
+
+            if session.processing_stages:
+                stages = session.processing_stages.copy()
+                stages["review"] = {
+                    "status": "completed",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                if has_tasks_to_sync:
+                    stages["syncing_tasks"] = {
+                        "status": "in_progress",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                else:
+                    stages["syncing_tasks"] = {
+                        "status": "completed",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                session.processing_stages = stages
+
+            if has_tasks_to_sync:
+                schedule_task_sync(session.id, task_updates=task_updates)
+                session.status = "processing"
+                logger.info(
+                    f"Session {session.id} LLM processing done, task sync pending" +
+                    (f" (failed stages: {', '.join(failed_stages)})" if failed_stages else ""),
                     extra={"session_id": session.id, "failed_stages": failed_stages}
                 )
             else:
-                session.status = "completed"
-                logger.info(
-                    f"Session {session.id} processing completed and marked as completed",
-                    extra={"session_id": session.id}
-                )
-        
+                # No tasks to sync, mark as completed now
+                if failed_stages:
+                    session.status = "completed_with_warnings"
+                    logger.warning(
+                        f"Session {session.id} completed with warnings: {', '.join(failed_stages)}",
+                        extra={"session_id": session.id, "failed_stages": failed_stages}
+                    )
+                else:
+                    session.status = "completed"
+                    logger.info(
+                        f"Session {session.id} processing completed and auto-approved",
+                        extra={"session_id": session.id}
+                    )
+        else:
+            session.status = "awaiting_review"
+            session.review_status = "pending"
+            session.reviewed_at = None
+
+            if session.processing_stages:
+                stages = session.processing_stages.copy()
+                stages["review"] = {
+                    "status": "in_progress",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                if has_tasks_to_sync:
+                    stages["syncing_tasks"] = {
+                        "status": "pending",
+                        "timestamp": None
+                    }
+                else:
+                    stages["syncing_tasks"] = {
+                        "status": "completed",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                session.processing_stages = stages
+
+            logger.info(
+                f"Session {session.id} awaiting user review before finalizing",
+                extra={
+                    "session_id": session.id,
+                    "failed_stages": failed_stages,
+                    "has_tasks_to_sync": has_tasks_to_sync,
+                },
+            )
+
         db.commit()
 
 

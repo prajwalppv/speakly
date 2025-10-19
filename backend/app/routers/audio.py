@@ -81,6 +81,8 @@ async def upload_audio(
         "diarizing": {"status": "pending", "timestamp": None},
         "summarizing": {"status": "pending", "timestamp": None},
         "extracting_tasks": {"status": "pending", "timestamp": None},
+        "tagging": {"status": "pending", "timestamp": None},
+        "review": {"status": "pending", "timestamp": None},
         "syncing_tasks": {"status": "pending", "timestamp": None},
     }
     
@@ -432,6 +434,8 @@ async def upload_audio_bulk(
                 "diarizing": {"status": "pending", "timestamp": None},
                 "summarizing": {"status": "pending", "timestamp": None},
                 "extracting_tasks": {"status": "pending", "timestamp": None},
+                "tagging": {"status": "pending", "timestamp": None},
+                "review": {"status": "pending", "timestamp": None},
                 "syncing_tasks": {"status": "pending", "timestamp": None},
             }
             

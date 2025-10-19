@@ -29,6 +29,12 @@ class User(Base, TimestampMixin):
     name = Column(String, nullable=True)  # Display name from Clerk
     email = Column(String, nullable=True, unique=True, index=True)  # Email from Clerk
     clerk_user_id = Column(String, nullable=True, unique=True, index=True)  # Clerk's user ID
+    auto_approve_sessions = Column(
+        Boolean,
+        nullable=False,
+        server_default=expression.true(),
+        default=True,
+    )
     
     # Legacy field for backwards compatibility (kept for migration)
     # Will be removed after all users migrated to Clerk
@@ -57,6 +63,8 @@ class Session(Base, TimestampMixin):
     summary_run_id = Column(Integer, ForeignKey("llm_runs.id"), nullable=True)
     todo_count = Column(Integer, default=0, nullable=False)
     processing_stages = Column(JSON, nullable=True)  # Track processing progress
+    review_status = Column(String, nullable=False, default="pending")
+    reviewed_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="sessions")
     transcriptions = relationship(

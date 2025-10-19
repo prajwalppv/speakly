@@ -15,6 +15,8 @@ from ..models import SpeakerProfile, SpeakerSegment
 from ..models import Tag, SessionTag
 from ..models import Todo as TodoModel
 from ..models import Transcription as TranscriptionModel
+from ..models import LlmRun
+from ..services.task_sync_service import schedule_task_sync
 from ..schemas import (
     SessionResponse,
     SpeakerSegmentResponse,
@@ -111,10 +113,12 @@ def _serialize_session(model: SessionModel) -> SessionResponse:
     return SessionResponse(
         id=model.id,
         status=model.status,
+        review_status=model.review_status,
         description=model.description,
         audio_path=model.audio_path,
         last_error=model.last_error,
         last_transcribed_at=model.last_transcribed_at,
+        reviewed_at=model.reviewed_at,
         has_pj=model.has_pj,
         todo_count=model.todo_count,
         task_updates_count=task_updates_count,
@@ -127,6 +131,47 @@ def _serialize_session(model: SessionModel) -> SessionResponse:
         todos=[_serialize_todo(todo) for todo in model.todos],
         tags=[_serialize_tag(st) for st in model.session_tags],
     )
+
+
+def _get_session_with_details(
+    db: Session, session_id: int, user_id: int
+) -> SessionModel | None:
+    return (
+        db.query(SessionModel)
+        .options(
+            joinedload(SessionModel.transcriptions),
+            joinedload(SessionModel.speaker_segments).joinedload(
+                SpeakerSegment.speaker_profile
+            ),
+            joinedload(SessionModel.todos),
+            joinedload(SessionModel.summary_run),
+            joinedload(SessionModel.session_tags).joinedload(SessionTag.tag),
+        )
+        .filter(
+            SessionModel.id == session_id,
+            SessionModel.user_id == user_id,
+        )
+        .one_or_none()
+    )
+
+
+def _get_latest_task_updates(db: Session, session_id: int) -> list[dict]:
+    latest_run = (
+        db.query(LlmRun)
+        .filter(
+            LlmRun.session_id == session_id,
+            LlmRun.run_type == "todos",
+            LlmRun.status == "completed",
+        )
+        .order_by(LlmRun.created_at.desc())
+        .first()
+    )
+    if not latest_run or not latest_run.metadata_payload:
+        return []
+    updates = latest_run.metadata_payload.get("task_updates")
+    if isinstance(updates, list):
+        return updates
+    return []
 
 
 @router.get("", response_model=list[SessionResponse])
@@ -195,26 +240,120 @@ def get_session_detail(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> SessionResponse:
-    session = (
-        db.query(SessionModel)
-        .options(
-            joinedload(SessionModel.transcriptions),
-            joinedload(SessionModel.speaker_segments).joinedload(
-                SpeakerSegment.speaker_profile
-            ),
-            joinedload(SessionModel.todos),
-            joinedload(SessionModel.summary_run),
-            joinedload(SessionModel.session_tags).joinedload(SessionTag.tag),
-        )
-        .filter(
-            SessionModel.id == session_id,
-            SessionModel.user_id == current_user.id  # Ensure user owns this session
-        )
-        .one_or_none()
-    )
+    session = _get_session_with_details(db, session_id, current_user.id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return _serialize_session(session)
+
+
+@router.post("/{session_id}/approve", response_model=SessionResponse)
+def approve_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> SessionResponse:
+    session = _get_session_with_details(db, session_id, current_user.id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.status != "awaiting_review":
+        raise HTTPException(
+            status_code=400,
+            detail="Session is not awaiting review",
+        )
+
+    task_updates = _get_latest_task_updates(db, session.id)
+    unsynced_todos = [
+        todo
+        for todo in session.todos
+        if (todo.ticktick_sync_status or "pending") in {"pending", "error"}
+    ]
+    has_tasks_to_sync = bool(unsynced_todos or task_updates)
+
+    session.review_status = "approved"
+    session.reviewed_at = datetime.utcnow()
+
+    if session.processing_stages:
+        stages = session.processing_stages.copy()
+        stages["review"] = {
+            "status": "completed",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        stages["syncing_tasks"] = {
+            "status": "in_progress" if has_tasks_to_sync else "completed",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        session.processing_stages = stages
+
+    if has_tasks_to_sync:
+        session.status = "processing"
+    else:
+        session.status = "completed_with_warnings" if session.last_error else "completed"
+
+    db.commit()
+
+    if has_tasks_to_sync:
+        schedule_task_sync(session.id, task_updates=task_updates)
+        db.expire_all()
+
+    updated = _get_session_with_details(db, session_id, current_user.id)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Session not found after approval")
+    return _serialize_session(updated)
+
+
+@router.post("/{session_id}/reject", response_model=SessionResponse)
+def reject_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> SessionResponse:
+    session = _get_session_with_details(db, session_id, current_user.id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session.status != "awaiting_review":
+        raise HTTPException(
+            status_code=400,
+            detail="Only sessions awaiting review can be rejected",
+        )
+
+    session.review_status = "rejected"
+    session.reviewed_at = datetime.utcnow()
+    session.status = "rejected"
+    session.todo_count = 0
+    session.last_error = None
+
+    # Remove pending todos and summary artifacts before discarding
+    for todo in list(session.todos):
+        db.delete(todo)
+
+    if session.summary_run:
+        db.delete(session.summary_run)
+        session.summary_run = None
+        session.summary_run_id = None
+
+    for session_tag in list(session.session_tags):
+        db.delete(session_tag)
+
+    if session.processing_stages:
+        stages = session.processing_stages.copy()
+        stages["review"] = {
+            "status": "completed",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        stages["syncing_tasks"] = {
+            "status": "completed",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        session.processing_stages = stages
+
+    db.commit()
+
+    updated = _get_session_with_details(db, session_id, current_user.id)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Session not found after rejection")
+    return _serialize_session(updated)
 
 
 @router.post("/{session_id}/retry", status_code=202)
@@ -355,6 +494,8 @@ def regenerate_summary_and_tasks(
     session.status = "processing"
     session.todo_count = 0
     session.last_error = None  # Clear any previous errors
+    session.review_status = "pending"
+    session.reviewed_at = None
     
     # Reset ALL processing stages to pending (fresh start)
     from datetime import datetime
@@ -365,6 +506,7 @@ def regenerate_summary_and_tasks(
         "summarizing": {"status": "pending", "timestamp": None},
         "extracting_tasks": {"status": "pending", "timestamp": None},
         "tagging": {"status": "pending", "timestamp": None},
+        "review": {"status": "pending", "timestamp": None},
         "syncing_tasks": {"status": "pending", "timestamp": None},
     }
     

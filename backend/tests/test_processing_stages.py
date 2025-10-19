@@ -20,6 +20,7 @@ class TestProcessingStagesInitialize:
         assert "summarizing" in stages
         assert "extracting_tasks" in stages
         assert "tagging" in stages
+        assert "review" in stages
         assert "syncing_tasks" in stages
 
     def test_initialize_uploaded_completed(self):
@@ -333,7 +334,7 @@ class TestProcessingStagesTimeEstimation:
         from app.services.processing_stages import ProcessingStages
         
         stages = ProcessingStages.initialize()
-        for stage in ["transcribing", "diarizing", "summarizing", "extracting_tasks", "tagging", "syncing_tasks"]:
+        for stage in ["transcribing", "diarizing", "summarizing", "extracting_tasks", "tagging", "review", "syncing_tasks"]:
             stages = ProcessingStages.complete_stage(stages, stage)
         
         estimate = ProcessingStages.estimate_time_remaining(stages)

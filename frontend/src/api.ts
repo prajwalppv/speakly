@@ -97,10 +97,12 @@ export interface TagRecord {
 export interface SessionRecord {
   id: number;
   status: string;
+  review_status: string;
   description: string | null;
   audio_path: string | null;
   last_error: string | null;
   last_transcribed_at: string | null;
+  reviewed_at: string | null;
   has_pj: boolean;
   todo_count: number;
   task_updates_count: number;
@@ -167,6 +169,31 @@ export interface SessionFilterParams {
 
 export async function fetchSessions(params: SessionFilterParams = {}): Promise<SessionRecord[]> {
   const response = await client.get<SessionRecord[]>("/api/sessions", { params });
+  return response.data;
+}
+
+export async function approveSession(sessionId: number): Promise<SessionRecord> {
+  const response = await client.post<SessionRecord>(`/api/sessions/${sessionId}/approve`);
+  return response.data;
+}
+
+export async function rejectSession(sessionId: number): Promise<SessionRecord> {
+  const response = await client.post<SessionRecord>(`/api/sessions/${sessionId}/reject`);
+  return response.data;
+}
+
+// User Preferences
+export interface UserPreferences {
+  auto_approve_sessions: boolean;
+}
+
+export async function fetchUserPreferences(): Promise<UserPreferences> {
+  const response = await client.get<UserPreferences>("/api/user/preferences");
+  return response.data;
+}
+
+export async function updateUserPreferences(preferences: UserPreferences): Promise<UserPreferences> {
+  const response = await client.put<UserPreferences>("/api/user/preferences", preferences);
   return response.data;
 }
 

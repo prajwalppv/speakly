@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import BulkUploader from "./components/BulkUploader";
 import SessionsList from "./components/SessionsList";
 import TickTickConnect from "./components/TickTickConnect";
+import RecordingPreferences from "./components/RecordingPreferences";
 import CommandPalette from "./components/CommandPalette";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import SignIn from "./components/SignIn";
@@ -212,7 +213,10 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="max-w-4xl mx-auto px-4 py-6"
           >
-            <TickTickConnect />
+            <div className="space-y-6">
+              <RecordingPreferences />
+              <TickTickConnect />
+            </div>
           </motion.div>
         )}
         {activeTab === "journeys" && <JourneysView />}

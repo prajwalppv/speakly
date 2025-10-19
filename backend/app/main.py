@@ -22,6 +22,7 @@ from .routers import tags as tags_router
 from .routers import ticktick as ticktick_router
 from .routers import todos as todos_router
 from .routers import transcriptions as transcriptions_router
+from .routers import user_preferences as user_preferences_router
 from .routers import webhooks as webhooks_router
 from .services import ensure_pj_profile
 from .startup import shutdown as run_shutdown_tasks
@@ -90,6 +91,7 @@ def register_routes(app: FastAPI) -> None:
     app.include_router(transcriptions_router.router)
     app.include_router(todos_router.router)
     app.include_router(journeys_router.router)
+    app.include_router(user_preferences_router.router)
 
 
 def register_event_handlers(app: FastAPI) -> None:

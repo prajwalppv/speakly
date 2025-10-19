@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { fetchSessions, SessionRecord } from '../api';
+import { approveSession, fetchSessions, rejectSession, SessionRecord } from '../api';
 import TaskManager from './TaskManager';
 import TranscriptEditor from './TranscriptEditor';
 import ExportButtons from './ExportButtons';
@@ -30,7 +30,10 @@ import {
   Loader2,
   AlertCircle,
   History,
-  Edit2
+  Edit2,
+  ShieldCheck,
+  Ban,
+  Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -61,6 +64,8 @@ export default function SessionsList({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [copiedSummaryId, setCopiedSummaryId] = useState<number | null>(null);
+  const [pendingReviewAction, setPendingReviewAction] = useState<{ id: number; type: 'approve' | 'reject' } | null>(null);
+  const [reviewError, setReviewError] = useState<{ id: number; message: string } | null>(null);
 
   // Apply external search query from command palette
   useEffect(() => {
@@ -91,6 +96,36 @@ export default function SessionsList({
       // Failed to load - UI will show empty state
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveSession = async (sessionId: number) => {
+    setReviewError(null);
+    setPendingReviewAction({ id: sessionId, type: "approve" });
+    try {
+      await approveSession(sessionId);
+      await loadSessions();
+    } catch (error) {
+      setReviewError({ id: sessionId, message: "Failed to approve session. Please try again." });
+    } finally {
+      setPendingReviewAction(null);
+    }
+  };
+
+  const handleRejectSession = async (sessionId: number) => {
+    if (!confirm("Discard this recording and its generated tasks?")) {
+      return;
+    }
+
+    setReviewError(null);
+    setPendingReviewAction({ id: sessionId, type: "reject" });
+    try {
+      await rejectSession(sessionId);
+      await loadSessions();
+    } catch (error) {
+      setReviewError({ id: sessionId, message: "Failed to discard session. Please try again." });
+    } finally {
+      setPendingReviewAction(null);
     }
   };
 
@@ -144,8 +179,11 @@ export default function SessionsList({
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed': return '#10b981';
+      case 'completed_with_warnings': return '#f59e0b';
       case 'processing': return '#3b82f6';
       case 'pending': return '#f59e0b';
+      case 'awaiting_review': return '#f97316';
+      case 'rejected': return '#a855f7';
       case 'error': return '#ef4444';
       default: return '#6b7280';
     }
@@ -155,8 +193,11 @@ export default function SessionsList({
     const iconProps = { size: 20, strokeWidth: 2 };
     switch (status.toLowerCase()) {
       case 'completed': return <CheckCircle2 {...iconProps} className="status-icon-completed" />;
+      case 'completed_with_warnings': return <AlertCircle {...iconProps} className="status-icon-warning text-amber-400" />;
       case 'processing': return <Clock {...iconProps} className="status-icon-processing" />;
       case 'pending': return <Pause {...iconProps} className="status-icon-pending" />;
+      case 'awaiting_review': return <Eye {...iconProps} className="status-icon-review text-amber-400" />;
+      case 'rejected': return <XCircle {...iconProps} className="status-icon-error text-purple-400" />;
       case 'error': return <XCircle {...iconProps} className="status-icon-error" />;
       default: return <FileText {...iconProps} />;
     }
@@ -208,6 +249,8 @@ export default function SessionsList({
       { key: 'diarizing', label: 'Diarize', icon: '👥' },
       { key: 'summarizing', label: 'Summarize', icon: '📝' },
       { key: 'extracting_tasks', label: 'Extract Tasks', icon: '✅' },
+      { key: 'tagging', label: 'Tagging', icon: '🏷️' },
+      { key: 'review', label: 'Review', icon: '👀' },
       { key: 'syncing_tasks', label: 'Sync', icon: '🔄' },
     ].map(step => ({
       ...step,
@@ -235,8 +278,14 @@ export default function SessionsList({
   // Filter and search sessions
   const filteredSessions = sessions.filter(session => {
     // Status filter
-    if (statusFilter !== 'all' && session.status !== statusFilter) {
-      return false;
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'completed') {
+        if (!['completed', 'completed_with_warnings'].includes(session.status)) {
+          return false;
+        }
+      } else if (session.status !== statusFilter) {
+        return false;
+      }
     }
 
     // Tag filter - session must have ALL selected tags
@@ -380,8 +429,11 @@ export default function SessionsList({
           >
             <option value="all">All Status</option>
             <option value="completed">Completed</option>
+            <option value="completed_with_warnings">Completed (Warnings)</option>
             <option value="processing">Processing</option>
             <option value="pending">Pending</option>
+            <option value="awaiting_review">Awaiting Review</option>
+            <option value="rejected">Rejected</option>
             <option value="error">Error</option>
           </select>
         </div>
@@ -442,6 +494,9 @@ export default function SessionsList({
           const isExpanded = expandedId === session.id;
           const hasTranscript = session.transcriptions[0]?.text;
           const hasSummary = session.summary?.text;
+          const isAwaitingReview = session.status === "awaiting_review";
+          const reviewActionInFlight =
+            pendingReviewAction && pendingReviewAction.id === session.id;
 
           return (
             <motion.div
@@ -470,6 +525,44 @@ export default function SessionsList({
                       <Clock size={12} />
                       {formatTime(session.created_at)}
                     </span>
+                    <span
+                      className={cn(
+                        "px-2 py-1 rounded-full text-xs font-medium border uppercase tracking-wide",
+                        session.status === "completed" && "bg-green/20 text-green border-green/30",
+                        session.status === "completed_with_warnings" && "bg-amber-500/20 text-amber-100 border-amber-500/30",
+                        session.status === "processing" && "bg-blue/20 text-blue border-blue/30",
+                        session.status === "pending" && "bg-gold/20 text-gold border-gold/30",
+                        session.status === "awaiting_review" && "bg-amber-500/20 text-amber-50 border-amber-400/30",
+                        session.status === "rejected" && "bg-purple-500/20 text-purple-100 border-purple-400/30",
+                        session.status === "error" && "bg-red-500/20 text-red-200 border-red-500/30"
+                      )}
+                    >
+                      {session.status.replace(/_/g, ' ')}
+                    </span>
+                    {session.status === "awaiting_review" && (
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold text-amber-100 border border-amber-400/30 bg-amber-500/10 flex items-center gap-1">
+                        <Eye size={12} />
+                        Awaiting your review
+                      </span>
+                    )}
+                    {session.review_status === "approved" && session.reviewed_at && (
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold text-green-200 border border-green/30 bg-green/10 flex items-center gap-1">
+                        <ShieldCheck size={12} />
+                        Reviewed
+                      </span>
+                    )}
+                    {session.review_status === "auto_approved" && (
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold text-blue-200 border border-blue/30 bg-blue/10 flex items-center gap-1">
+                        <Sparkles size={12} />
+                        Auto-approved
+                      </span>
+                    )}
+                    {session.review_status === "rejected" && (
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold text-purple-200 border border-purple-300/40 bg-purple-500/10 flex items-center gap-1">
+                        <Ban size={12} />
+                        Discarded
+                      </span>
+                    )}
                     
                     {/* Tags */}
                     {session.tags && session.tags.length > 0 && (
@@ -550,6 +643,63 @@ export default function SessionsList({
                     className="border-t border-gold/20 bg-black/30 p-6 space-y-6"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {reviewError && reviewError.id === session.id && (
+                      <div className="flex items-center gap-2 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-100 text-sm">
+                        <AlertCircle size={18} />
+                        {reviewError.message}
+                      </div>
+                    )}
+
+                    {isAwaitingReview && (
+                      <div className="p-4 border border-amber-400/30 bg-amber-500/10 rounded-lg space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Eye size={18} className="text-amber-100" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-50">Review before saving</p>
+                            <p className="text-xs text-amber-100/80">
+                              Edit the transcript or tasks as needed, then approve to store this recording or discard it.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <motion.button
+                            onClick={() => handleApproveSession(session.id)}
+                            disabled={reviewActionInFlight}
+                            className={cn(
+                              "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-green/20 text-green border border-green/30 transition-all",
+                              reviewActionInFlight && pendingReviewAction?.type === "approve" && "opacity-70 cursor-wait"
+                            )}
+                            whileHover={!reviewActionInFlight ? { scale: 1.03 } : {}}
+                            whileTap={!reviewActionInFlight ? { scale: 0.97 } : {}}
+                          >
+                            {reviewActionInFlight && pendingReviewAction?.type === "approve" ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <ShieldCheck size={16} />
+                            )}
+                            <span>Approve &amp; Save</span>
+                          </motion.button>
+                          <motion.button
+                            onClick={() => handleRejectSession(session.id)}
+                            disabled={reviewActionInFlight}
+                            className={cn(
+                              "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-purple-500/10 text-purple-100 border border-purple-400/40 transition-all",
+                              reviewActionInFlight && pendingReviewAction?.type === "reject" && "opacity-70 cursor-wait"
+                            )}
+                            whileHover={!reviewActionInFlight ? { scale: 1.03 } : {}}
+                            whileTap={!reviewActionInFlight ? { scale: 0.97 } : {}}
+                          >
+                            {reviewActionInFlight && pendingReviewAction?.type === "reject" ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Ban size={16} />
+                            )}
+                            <span>Discard Recording</span>
+                          </motion.button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Error display */}
                     {session.last_error && (
                       <div className="flex items-center gap-2 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-500 text-sm">

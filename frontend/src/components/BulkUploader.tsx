@@ -7,7 +7,7 @@ import AudioRecorder from "./AudioRecorder";
 import Toast, { ToastType } from "./Toast";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Upload, X, CheckCircle2, AlertCircle, Clock, Mic2, ChevronDown, ChevronUp, Sparkles, RefreshCw } from "lucide-react";
+import { Upload, X, CheckCircle2, AlertCircle, Clock, Mic2, ChevronDown, ChevronUp, Sparkles, RefreshCw, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface UploadProgress {
@@ -19,6 +19,14 @@ interface UploadProgress {
 }
 
 const fileSignature = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
+
+const TERMINAL_SESSION_STATUSES: Array<SessionRecord["status"]> = [
+  "completed",
+  "completed_with_warnings",
+  "error",
+  "awaiting_review",
+  "rejected",
+];
 
 export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
@@ -143,7 +151,7 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
 
     // Smart polling: only poll sessions that are still processing
     const hasProcessing = progress.some(
-      (p) => p.session && !['completed', 'completed_with_warnings', 'error'].includes(p.session.status)
+      (p) => p.session && !TERMINAL_SESSION_STATUSES.includes(p.session.status)
     );
     
     if (!hasProcessing) {
@@ -257,7 +265,7 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
         p.sessionId && 
         p.status === "success" &&
         p.session &&
-        !['completed', 'completed_with_warnings', 'error'].includes(p.session.status)
+        !TERMINAL_SESSION_STATUSES.includes(p.session.status)
       )
       .map(p => p.sessionId!);
 
@@ -597,14 +605,20 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
                         <span className={cn(
                           "px-3 py-1 rounded-full text-sm font-medium",
                           item.session.status === "completed" && "bg-green/20 text-green border border-green/30",
+                          item.session.status === "completed_with_warnings" && "bg-amber-500/20 text-amber-100 border border-amber-500/30",
                           item.session.status === "processing" && "bg-blue/20 text-blue border border-blue/30",
+                          item.session.status === "awaiting_review" && "bg-amber-500/20 text-amber-100 border border-amber-400/30",
+                          item.session.status === "rejected" && "bg-purple-500/20 text-purple-100 border border-purple-400/30",
                           item.session.status === "error" && "bg-red-500/20 text-red-500 border border-red-500/30"
                         )}>
                           {item.session.status === "completed" && "✅"}
+                          {item.session.status === "completed_with_warnings" && "⚠️"}
                           {item.session.status === "processing" && "⏳"}
+                          {item.session.status === "awaiting_review" && "👀"}
+                          {item.session.status === "rejected" && "🚫"}
                           {item.session.status === "error" && "❌"}
                           {" "}
-                          {item.session.status}
+                          {item.session.status.replace(/_/g, " ")}
                         </span>
                       </div>
                     )}
@@ -614,6 +628,12 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
                       <div className="flex items-center gap-2 text-blue text-sm">
                         <Clock size={16} />
                         <span>Processing your audio...</span>
+                      </div>
+                    )}
+                    {item.session && item.session.status === "awaiting_review" && (
+                      <div className="flex items-center gap-2 text-amber-200 text-sm">
+                        <Eye size={16} />
+                        <span>Waiting for you to review and approve this recording.</span>
                       </div>
                     )}
 
