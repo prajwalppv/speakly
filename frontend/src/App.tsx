@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import BulkUploader from "./components/BulkUploader";
 import SessionsList from "./components/SessionsList";
 import TickTickConnect from "./components/TickTickConnect";
+import RecordingPreferences from "./components/RecordingPreferences";
 import CommandPalette from "./components/CommandPalette";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import SignIn from "./components/SignIn";
@@ -192,6 +193,9 @@ export default function App() {
         <main className="min-h-[calc(100vh-80px)]">
         {activeTab === "upload" && (
           <>
+            <div className="w-full max-w-7xl mx-auto px-4 pt-6">
+              <RecordingPreferences />
+            </div>
             <BulkUploader 
               onUploadComplete={() => setRefreshTrigger(prev => prev + 1)} 
             />

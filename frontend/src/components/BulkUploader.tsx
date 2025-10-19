@@ -1,13 +1,13 @@
 import { useCallback, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { uploadAudioBulk, SessionRecord, fetchSessions, fetchSession, editTranscription, regenerateSession } from "../api";
+import { uploadAudioBulk, SessionRecord, fetchSession, editTranscription, regenerateSession, deleteSession } from "../api";
 import TranscriptEditor from "./TranscriptEditor";
 import TaskManager from "./TaskManager";
 import AudioRecorder from "./AudioRecorder";
 import Toast, { ToastType } from "./Toast";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Upload, X, CheckCircle2, AlertCircle, Clock, Mic2, ChevronDown, ChevronUp, Sparkles, RefreshCw } from "lucide-react";
+import { Upload, X, CheckCircle2, AlertCircle, Clock, Mic2, ChevronDown, ChevronUp, Sparkles, RefreshCw, Eye, Trash2, Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface UploadProgress {
@@ -20,6 +20,14 @@ interface UploadProgress {
 
 const fileSignature = (file: File) => `${file.name}-${file.size}-${file.lastModified}`;
 
+const TERMINAL_SESSION_STATUSES: Array<SessionRecord["status"]> = [
+  "completed",
+  "completed_with_warnings",
+  "error",
+  "awaiting_review",
+  "rejected",
+];
+
 export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -28,6 +36,7 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [showRecorder, setShowRecorder] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
 
   const showToast = useCallback((message: string, type: ToastType) => {
     setToast({ message, type });
@@ -119,6 +128,26 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
     }
   };
 
+  const handleDeleteSessionRecord = async (sessionId: number) => {
+    if (deletingSessionId === sessionId) {
+      return;
+    }
+    if (!confirm('Delete this recording permanently? This cannot be undone.')) {
+      return;
+    }
+
+    setDeletingSessionId(sessionId);
+    try {
+      await deleteSession(sessionId);
+      setProgress((prev) => prev.filter((item) => item.sessionId !== sessionId));
+      showToast('Recording deleted.', 'success');
+    } catch (error) {
+      showToast('Failed to delete recording.', 'error');
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
+
   // Load full session data after upload (includes processing_stages)
   useEffect(() => {
     const loadSessionData = async () => {
@@ -143,7 +172,7 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
 
     // Smart polling: only poll sessions that are still processing
     const hasProcessing = progress.some(
-      (p) => p.session && !['completed', 'completed_with_warnings', 'error'].includes(p.session.status)
+      (p) => p.session && !TERMINAL_SESSION_STATUSES.includes(p.session.status)
     );
     
     if (!hasProcessing) {
@@ -257,7 +286,7 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
         p.sessionId && 
         p.status === "success" &&
         p.session &&
-        !['completed', 'completed_with_warnings', 'error'].includes(p.session.status)
+        !TERMINAL_SESSION_STATUSES.includes(p.session.status)
       )
       .map(p => p.sessionId!);
 
@@ -523,6 +552,20 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
                 const hasSummary = !!item.session?.summary?.text;
                 const hasTodos = (item.session?.todos?.length ?? 0) > 0;
                 const isProcessing = item.session?.status === "processing";
+                const extractionStatus = (item.session?.processing_stages?.extracting_tasks?.status || "")
+                  .toString()
+                  .toLowerCase();
+                const extractionInProgress =
+                  !hasTodos &&
+                  hasTranscription &&
+                  (["pending", "in_progress"].includes(extractionStatus) ||
+                    (!extractionStatus && ["processing", "pending"].includes((item.session?.status || "").toLowerCase())));
+                const extractionFailed = hasTranscription && extractionStatus === "failed";
+                const showNoTasksDetected =
+                  hasTranscription &&
+                  !hasTodos &&
+                  !extractionInProgress &&
+                  !extractionFailed;
 
                 return (
                   <motion.div
@@ -597,15 +640,43 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
                         <span className={cn(
                           "px-3 py-1 rounded-full text-sm font-medium",
                           item.session.status === "completed" && "bg-green/20 text-green border border-green/30",
+                          item.session.status === "completed_with_warnings" && "bg-amber-500/20 text-amber-100 border border-amber-500/30",
                           item.session.status === "processing" && "bg-blue/20 text-blue border border-blue/30",
+                          item.session.status === "awaiting_review" && "bg-amber-500/20 text-amber-100 border border-amber-400/30",
+                          item.session.status === "rejected" && "bg-purple-500/20 text-purple-100 border border-purple-400/30",
                           item.session.status === "error" && "bg-red-500/20 text-red-500 border border-red-500/30"
                         )}>
                           {item.session.status === "completed" && "✅"}
+                          {item.session.status === "completed_with_warnings" && "⚠️"}
                           {item.session.status === "processing" && "⏳"}
+                          {item.session.status === "awaiting_review" && "👀"}
+                          {item.session.status === "rejected" && "🚫"}
                           {item.session.status === "error" && "❌"}
                           {" "}
-                          {item.session.status}
+                          {item.session.status.replace(/_/g, " ")}
                         </span>
+                        <motion.button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (item.sessionId) {
+                              handleDeleteSessionRecord(item.sessionId);
+                            }
+                          }}
+                          disabled={deletingSessionId === item.sessionId}
+                          className={cn(
+                            "px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition-all",
+                            deletingSessionId === item.sessionId && "opacity-60 cursor-wait"
+                          )}
+                          whileHover={deletingSessionId === item.sessionId ? {} : { scale: 1.05 }}
+                          whileTap={deletingSessionId === item.sessionId ? {} : { scale: 0.95 }}
+                        >
+                          {deletingSessionId === item.sessionId ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={12} />
+                          )}
+                          Delete
+                        </motion.button>
                       </div>
                     )}
 
@@ -614,6 +685,12 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
                       <div className="flex items-center gap-2 text-blue text-sm">
                         <Clock size={16} />
                         <span>Processing your audio...</span>
+                      </div>
+                    )}
+                    {item.session && item.session.status === "awaiting_review" && (
+                      <div className="flex items-center gap-2 text-amber-200 text-sm">
+                        <Eye size={16} />
+                        <span>Waiting for you to review and approve this recording.</span>
                       </div>
                     )}
 
@@ -671,10 +748,20 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
                           todos={item.session?.todos || []}
                           onUpdate={() => refreshSession(item.sessionId!)}
                         />
-                      ) : hasTranscription ? (
+                      ) : extractionInProgress ? (
                         <div className="flex items-center gap-2 text-sm text-bone-dim">
                           <Clock size={16} />
                           <span>Extracting tasks...</span>
+                        </div>
+                      ) : extractionFailed ? (
+                        <div className="flex items-center gap-2 text-sm text-red-400">
+                          <AlertCircle size={16} />
+                          <span>Task extraction failed.</span>
+                        </div>
+                      ) : showNoTasksDetected ? (
+                        <div className="flex items-center gap-2 text-sm text-bone-dim">
+                          <Check size={16} />
+                          <span>No tasks detected in this recording.</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-sm text-bone-dim">

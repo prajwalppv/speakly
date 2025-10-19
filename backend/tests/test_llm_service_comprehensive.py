@@ -630,16 +630,35 @@ class TestRunSummaryAndTodos:
         mock_session = Mock(spec=Session)
         mock_session.id = 1
         mock_session.processing_stages = {}
+        mock_session.user = Mock(auto_approve_sessions=True)
+        mock_session.last_error = None
         
         mock_transcription = Mock(spec=Transcription)
         mock_transcription.id = 1
         mock_transcription.text = "Test transcript"
         
         mock_db = Mock()
-        mock_db.query().filter_by().one_or_none.side_effect = [
-            mock_session, mock_transcription
-        ]
-        mock_db.query().filter_by().count.return_value = 2
+
+        query_session = Mock()
+        query_transcription = Mock()
+        query_todo = Mock()
+
+        query_session.options.return_value.filter_by.return_value.one_or_none.return_value = mock_session
+        query_transcription.filter_by.return_value.one_or_none.return_value = mock_transcription
+        query_todo.filter_by.return_value.count.return_value = 2
+
+        from app.models import Todo
+
+        def query_side_effect(model, *_, **__):
+            if model is Session:
+                return query_session
+            if model is Transcription:
+                return query_transcription
+            if model is Todo:
+                return query_todo
+            return Mock()
+
+        mock_db.query.side_effect = query_side_effect
         
         mock_session_local.return_value.__enter__.return_value = mock_db
         

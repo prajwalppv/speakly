@@ -136,10 +136,12 @@ class TagCreate(BaseModel):
 class SessionResponse(UTCBaseModel):
     id: int
     status: str
+    review_status: str
     description: str | None
     audio_path: Path | None
     last_error: str | None
     last_transcribed_at: datetime | None
+    reviewed_at: datetime | None = None
     has_pj: bool
     todo_count: int
     task_updates_count: int = 0  # Number of task updates processed
@@ -153,6 +155,23 @@ class SessionResponse(UTCBaseModel):
     tags: list[TagResponse] = []
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class SessionBulkDeleteRequest(BaseModel):
+    session_ids: list[int] = Field(default_factory=list, min_items=1)
+
+
+class SessionBulkDeleteResponse(BaseModel):
+    deleted: int
+    not_found: list[int] = Field(default_factory=list)
+
+
+class UserPreferencesResponse(UTCBaseModel):
+    auto_approve_sessions: bool
+
+
+class UserPreferencesUpdateRequest(BaseModel):
+    auto_approve_sessions: bool
 
 
 class ElevenLabsWebhookTranscription(BaseModel):
@@ -282,6 +301,8 @@ __all__ = [
     "TodoResponse",
     "SummaryResponse",
     "SessionResponse",
+    "SessionBulkDeleteRequest",
+    "SessionBulkDeleteResponse",
     "ElevenLabsWebhookPayload",
     "TagResponse",
     "TagCreate",
@@ -290,4 +311,6 @@ __all__ = [
     "ReportResponse",
     "ReportListResponse",
     "ReportGenerateRequest",
+    "UserPreferencesResponse",
+    "UserPreferencesUpdateRequest",
 ]

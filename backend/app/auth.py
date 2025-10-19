@@ -268,6 +268,7 @@ def get_or_create_user_from_clerk(
         clerk_user_id=clerk_user_id,
         email=email or f"{clerk_user_id}@clerk.user",  # Fallback email
         name=name or "Unknown User",
+        auto_approve_sessions=False,
     )
     db.add(user)
     db.commit()
