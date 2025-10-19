@@ -44,13 +44,13 @@ export default function RecordingPreferences() {
     }
   };
 
-  const autoApproveEnabled = preferences?.auto_approve_sessions ?? true;
+  const autoApproveEnabled = preferences?.auto_approve_sessions ?? false;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-gradient-to-br from-black-soft to-black border-2 border-gold/30 rounded-xl p-6 space-y-4"
+      className="w-full bg-gradient-to-br from-black-soft to-black border-2 border-gold/30 rounded-xl p-6 space-y-4"
     >
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-1">

@@ -686,18 +686,18 @@ class TestUserPreferences:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["auto_approve_sessions"] is True
+        assert data["auto_approve_sessions"] is False
 
     def test_update_user_preferences(self, client):
         response = client.put(
             "/api/user/preferences",
-            json={"auto_approve_sessions": False},
+            json={"auto_approve_sessions": True},
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["auto_approve_sessions"] is False
+        assert data["auto_approve_sessions"] is True
 
         confirm = client.get("/api/user/preferences")
         assert confirm.status_code == 200
-        assert confirm.json()["auto_approve_sessions"] is False
+        assert confirm.json()["auto_approve_sessions"] is True

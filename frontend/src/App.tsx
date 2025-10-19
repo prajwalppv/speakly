@@ -193,6 +193,9 @@ export default function App() {
         <main className="min-h-[calc(100vh-80px)]">
         {activeTab === "upload" && (
           <>
+            <div className="w-full max-w-7xl mx-auto px-4 pt-6">
+              <RecordingPreferences />
+            </div>
             <BulkUploader 
               onUploadComplete={() => setRefreshTrigger(prev => prev + 1)} 
             />
@@ -213,10 +216,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="max-w-4xl mx-auto px-4 py-6"
           >
-            <div className="space-y-6">
-              <RecordingPreferences />
-              <TickTickConnect />
-            </div>
+            <TickTickConnect />
           </motion.div>
         )}
         {activeTab === "journeys" && <JourneysView />}

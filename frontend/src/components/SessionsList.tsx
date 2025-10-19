@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { approveSession, fetchSessions, rejectSession, deleteSession as deleteSessionApi, deleteSessionsBulk, SessionRecord } from '../api';
+import { approveSession, fetchSessions, rejectSession, deleteSession as deleteSessionApi, deleteSessionsBulk, regenerateSession, SessionRecord } from '../api';
 import TaskManager from './TaskManager';
 import TranscriptEditor from './TranscriptEditor';
 import ExportButtons from './ExportButtons';
@@ -27,16 +27,36 @@ import {
   Copy,
   Check,
   Filter,
-  Loader2,
   AlertCircle,
   History,
   Edit2,
   ShieldCheck,
   Ban,
   Eye,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const COMPLETED_STATUS_SET = new Set(["completed"]);
+
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  processing: "bg-blue/15 text-blue border border-blue/30",
+  pending: "bg-gold/15 text-gold border border-gold/30",
+  awaiting_review: "bg-amber-500/15 text-amber-100 border border-amber-400/30",
+  rejected: "bg-purple-500/15 text-purple-200 border border-purple-400/30",
+  error: "bg-red-500/15 text-red-200 border border-red-500/30",
+  completed_with_warnings: "bg-amber-500/15 text-amber-100 border border-amber-400/30",
+};
+
+const STATUS_BADGE_ICONS: Record<string, React.ReactNode> = {
+  processing: <Clock size={12} />,
+  pending: <Pause size={12} />,
+  awaiting_review: <Eye size={12} />,
+  rejected: <XCircle size={12} />,
+  error: <AlertCircle size={12} />,
+  completed_with_warnings: <AlertCircle size={12} />,
+};
 
 interface ProcessingStage {
   status: string;
@@ -70,6 +90,7 @@ export default function SessionsList({
   const [selectedSessions, setSelectedSessions] = useState<Set<number>>(new Set());
   const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [regeneratingSessionId, setRegeneratingSessionId] = useState<number | null>(null);
 
   // Apply external search query from command palette
   useEffect(() => {
@@ -130,6 +151,28 @@ export default function SessionsList({
       setReviewError({ id: sessionId, message: "Failed to discard session. Please try again." });
     } finally {
       setPendingReviewAction(null);
+    }
+  };
+
+  const handleRegenerateSession = async (sessionId: number) => {
+    if (regeneratingSessionId === sessionId) {
+      return;
+    }
+    if (!confirm("Regenerate summary and tasks from the latest transcript?")) {
+      return;
+    }
+    setReviewError(null);
+    setRegeneratingSessionId(sessionId);
+    try {
+      await regenerateSession(sessionId);
+      await loadSessions();
+    } catch (error) {
+      setReviewError({
+        id: sessionId,
+        message: "Failed to regenerate insights. Please try again.",
+      });
+    } finally {
+      setRegeneratingSessionId(null);
     }
   };
 
@@ -353,6 +396,47 @@ export default function SessionsList({
       ...step,
       status: stages[step.key]?.status || 'pending'
     }));
+  };
+
+  const renderStatusBadge = (session: SessionRecord) => {
+    const status = (session.status || '').toLowerCase();
+    if (COMPLETED_STATUS_SET.has(status)) {
+      return null;
+    }
+    const badgeClass = STATUS_BADGE_STYLES[status] ?? "bg-gold/15 text-gold border border-gold/30";
+    const icon = STATUS_BADGE_ICONS[status];
+    const label = status.replace(/_/g, ' ');
+    return (
+      <span className={cn(
+        "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold uppercase tracking-wide",
+        badgeClass
+      )}
+      >
+        {icon}
+        {label}
+      </span>
+    );
+  };
+
+  const renderReviewBadge = (session: SessionRecord) => {
+    const reviewStatus = session.review_status?.toLowerCase();
+    if (reviewStatus === "auto_approved") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-blue/15 text-blue border border-blue/30">
+          <Sparkles size={12} />
+          Auto-approved
+        </span>
+      );
+    }
+    if (reviewStatus === "approved") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-green/15 text-green border border-green/30">
+          <ShieldCheck size={12} />
+          Reviewed
+        </span>
+      );
+    }
+    return null;
   };
 
   // Handle tag click
@@ -640,75 +724,41 @@ export default function SessionsList({
               )}
             >
               {/* Compact view */}
-              <div 
-                className="p-4 flex items-start gap-4"
+              <div
+                className="p-4 flex flex-col gap-3"
                 onClick={() => toggleExpand(session.id)}
               >
-                <div className="pt-1">
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelectSession(session.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="h-4 w-4 rounded border-gold/40 bg-black text-gold focus:ring-gold cursor-pointer"
-                  />
-                </div>
-                <div className="flex-1 min-w-0 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{getStatusIcon(session.status)}</span>
-                    <h3 className="text-lg font-display font-semibold text-bone truncate">{getSessionTitle(session)}</h3>
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="shrink-0 pt-1">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelectSession(session.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-4 w-4 rounded border-gold/40 bg-black text-gold focus:ring-gold cursor-pointer"
+                    />
                   </div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-xs text-bone-dim flex items-center gap-1">
-                      <Clock size={12} />
-                      {formatTime(session.created_at)}
-                    </span>
-                    <span
-                      className={cn(
-                        "px-2 py-1 rounded-full text-xs font-medium border uppercase tracking-wide",
-                        session.status === "completed" && "bg-green/20 text-green border-green/30",
-                        session.status === "completed_with_warnings" && "bg-amber-500/20 text-amber-100 border-amber-500/30",
-                        session.status === "processing" && "bg-blue/20 text-blue border-blue/30",
-                        session.status === "pending" && "bg-gold/20 text-gold border-gold/30",
-                        session.status === "awaiting_review" && "bg-amber-500/20 text-amber-50 border-amber-400/30",
-                        session.status === "rejected" && "bg-purple-500/20 text-purple-100 border-purple-400/30",
-                        session.status === "error" && "bg-red-500/20 text-red-200 border-red-500/30"
-                      )}
-                    >
-                      {session.status.replace(/_/g, ' ')}
-                    </span>
-                    {session.status === "awaiting_review" && (
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold text-amber-100 border border-amber-400/30 bg-amber-500/10 flex items-center gap-1">
-                        <Eye size={12} />
-                        Awaiting your review
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xl text-gold/80">{getStatusIcon(session.status)}</span>
+                      <h3 className="text-lg font-display font-semibold text-bone truncate max-w-full">
+                        {getSessionTitle(session)}
+                      </h3>
+                      {renderReviewBadge(session)}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-bone-dim">
+                      <span className="flex items-center gap-1">
+                        <Clock size={12} />
+                        {formatTime(session.created_at)}
                       </span>
-                    )}
-                    {session.review_status === "approved" && session.reviewed_at && (
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold text-green-200 border border-green/30 bg-green/10 flex items-center gap-1">
-                        <ShieldCheck size={12} />
-                        Reviewed
-                      </span>
-                    )}
-                    {session.review_status === "auto_approved" && (
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold text-blue-200 border border-blue/30 bg-blue/10 flex items-center gap-1">
-                        <Sparkles size={12} />
-                        Auto-approved
-                      </span>
-                    )}
-                    {session.review_status === "rejected" && (
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold text-purple-200 border border-purple-300/40 bg-purple-500/10 flex items-center gap-1">
-                        <Ban size={12} />
-                        Discarded
-                      </span>
-                    )}
-                    
-                    {/* Tags */}
+                      {renderStatusBadge(session)}
+                    </div>
                     {session.tags && session.tags.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {session.tags.slice(0, isExpanded ? session.tags.length : 3).map((tag) => (
-                          <Tag 
-                            key={tag.id} 
-                            tag={tag} 
+                          <Tag
+                            key={tag.id}
+                            tag={tag}
                             size="small"
                             onClick={(e) => handleTagClick(tag.name, e)}
                             isSelected={selectedTags.includes(tag.name)}
@@ -722,69 +772,55 @@ export default function SessionsList({
                       </div>
                     )}
                   </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-end gap-2">
-                    {hasSummary && !isExpanded && (
+                  <div className="flex items-center gap-2 ml-auto flex-wrap justify-end">
+                    {hasSummary && (
                       <motion.button
                         onClick={(e) => handleCopySummary(e, session)}
                         className={cn(
-                          "px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all",
+                          "px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition",
                           copiedSummaryId === session.id
-                            ? "bg-green/20 text-green border border-green/30"
-                            : "bg-blue/20 text-blue border border-blue/30 hover:bg-blue/30"
+                            ? "bg-green/20 text-green border-green/30"
+                            : "bg-blue/15 text-blue border-blue/30 hover:bg-blue/25"
                         )}
-                        title="Copy AI Summary to clipboard"
+                        title="Copy AI Summary"
                         aria-label="Copy AI Summary"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        whileHover={{ scale: 1.04 }}
+                        whileTap={{ scale: 0.96 }}
                       >
-                        {copiedSummaryId === session.id ? (
-                          <>
-                            <Check size={14} />
-                            <span>Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={14} />
-                            <span>Copy Summary</span>
-                          </>
-                        )}
+                        {copiedSummaryId === session.id ? <Check size={14} /> : <Copy size={14} />}
+                        {copiedSummaryId === session.id ? "Copied" : "Copy"}
                       </motion.button>
                     )}
-                    
-                    {!isExpanded && (session.todo_count > 0 || session.todos.length > 0) && (
-                      <span className="px-2 py-1 bg-green/20 text-green border border-green/30 rounded-full text-xs font-medium flex items-center gap-1.5">
+                    {(session.todo_count > 0 || session.todos.length > 0) && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-green/15 text-green border border-green/30">
                         <CheckSquare size={12} />
-                        {session.todo_count || session.todos.length} {(session.todo_count || session.todos.length) === 1 ? 'action' : 'actions'}
+                        {session.todo_count || session.todos.length}
                       </span>
                     )}
                     <motion.button
                       onClick={(e) => handleDeleteSession(e, session.id)}
                       disabled={deletingSessionId === session.id}
                       className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition-all",
+                        "px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition",
                         deletingSessionId === session.id && "opacity-60 cursor-wait"
                       )}
-                      whileHover={deletingSessionId === session.id ? {} : { scale: 1.05 }}
-                      whileTap={deletingSessionId === session.id ? {} : { scale: 0.95 }}
+                      whileHover={deletingSessionId === session.id ? {} : { scale: 1.04 }}
+                      whileTap={deletingSessionId === session.id ? {} : { scale: 0.96 }}
                     >
-                      {deletingSessionId === session.id ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <Trash2 size={14} />
-                      )}
+                      {deletingSessionId === session.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                       Delete
                     </motion.button>
+                    <motion.button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpand(session.id);
+                      }}
+                      className="p-2 text-gold hover:bg-gold/10 rounded-lg transition-colors"
+                      animate={{ rotate: isExpanded ? 90 : 0 }}
+                    >
+                      <ChevronRight size={20} />
+                    </motion.button>
                   </div>
-                  
-                  <motion.button
-                    className="p-2 text-gold hover:bg-gold/10 rounded-lg transition-colors"
-                    animate={{ rotate: isExpanded ? 90 : 0 }}
-                  >
-                    <ChevronRight size={20} />
-                  </motion.button>
                 </div>
               </div>
 
@@ -833,6 +869,23 @@ export default function SessionsList({
                               <ShieldCheck size={16} />
                             )}
                             <span>Approve &amp; Save</span>
+                          </motion.button>
+                          <motion.button
+                            onClick={() => handleRegenerateSession(session.id)}
+                            disabled={regeneratingSessionId === session.id || reviewActionInFlight}
+                            className={cn(
+                              "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-blue/15 text-blue border border-blue/30 transition-all",
+                              regeneratingSessionId === session.id && "opacity-70 cursor-wait"
+                            )}
+                            whileHover={regeneratingSessionId === session.id ? {} : { scale: 1.03 }}
+                            whileTap={regeneratingSessionId === session.id ? {} : { scale: 0.97 }}
+                          >
+                            {regeneratingSessionId === session.id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <RefreshCw size={16} />
+                            )}
+                            <span>Regenerate Insights</span>
                           </motion.button>
                           <motion.button
                             onClick={() => handleRejectSession(session.id)}

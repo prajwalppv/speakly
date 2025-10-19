@@ -32,8 +32,8 @@ class User(Base, TimestampMixin):
     auto_approve_sessions = Column(
         Boolean,
         nullable=False,
-        server_default=expression.true(),
-        default=True,
+        server_default=expression.false(),
+        default=False,
     )
     
     # Legacy field for backwards compatibility (kept for migration)

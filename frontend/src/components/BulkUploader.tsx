@@ -1,13 +1,13 @@
 import { useCallback, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { uploadAudioBulk, SessionRecord, fetchSessions, fetchSession, editTranscription, regenerateSession, deleteSession } from "../api";
+import { uploadAudioBulk, SessionRecord, fetchSession, editTranscription, regenerateSession, deleteSession } from "../api";
 import TranscriptEditor from "./TranscriptEditor";
 import TaskManager from "./TaskManager";
 import AudioRecorder from "./AudioRecorder";
 import Toast, { ToastType } from "./Toast";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Upload, X, CheckCircle2, AlertCircle, Clock, Mic2, ChevronDown, ChevronUp, Sparkles, RefreshCw, Eye, Trash2, Loader2 } from "lucide-react";
+import { Upload, X, CheckCircle2, AlertCircle, Clock, Mic2, ChevronDown, ChevronUp, Sparkles, RefreshCw, Eye, Trash2, Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface UploadProgress {
@@ -552,6 +552,20 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
                 const hasSummary = !!item.session?.summary?.text;
                 const hasTodos = (item.session?.todos?.length ?? 0) > 0;
                 const isProcessing = item.session?.status === "processing";
+                const extractionStatus = (item.session?.processing_stages?.extracting_tasks?.status || "")
+                  .toString()
+                  .toLowerCase();
+                const extractionInProgress =
+                  !hasTodos &&
+                  hasTranscription &&
+                  (["pending", "in_progress"].includes(extractionStatus) ||
+                    (!extractionStatus && ["processing", "pending"].includes((item.session?.status || "").toLowerCase())));
+                const extractionFailed = hasTranscription && extractionStatus === "failed";
+                const showNoTasksDetected =
+                  hasTranscription &&
+                  !hasTodos &&
+                  !extractionInProgress &&
+                  !extractionFailed;
 
                 return (
                   <motion.div
@@ -734,10 +748,20 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
                           todos={item.session?.todos || []}
                           onUpdate={() => refreshSession(item.sessionId!)}
                         />
-                      ) : hasTranscription ? (
+                      ) : extractionInProgress ? (
                         <div className="flex items-center gap-2 text-sm text-bone-dim">
                           <Clock size={16} />
                           <span>Extracting tasks...</span>
+                        </div>
+                      ) : extractionFailed ? (
+                        <div className="flex items-center gap-2 text-sm text-red-400">
+                          <AlertCircle size={16} />
+                          <span>Task extraction failed.</span>
+                        </div>
+                      ) : showNoTasksDetected ? (
+                        <div className="flex items-center gap-2 text-sm text-bone-dim">
+                          <Check size={16} />
+                          <span>No tasks detected in this recording.</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 text-sm text-bone-dim">
