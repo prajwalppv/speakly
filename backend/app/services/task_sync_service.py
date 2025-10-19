@@ -312,22 +312,23 @@ class TaskSyncService:
 
         return stats
 
-    async def delete_from_ticktick(self, task_id: str, project_id: str) -> None:
+    async def delete_from_ticktick(
+        self, task_id: str, project_id: str, user_id: int
+    ) -> None:
         """
         Delete a task from TickTick by task ID and project ID.
 
         Args:
             task_id: TickTick task ID to delete
             project_id: TickTick project ID where the task exists
+            user_id: Speakly user ID that owns the TickTick credential
         """
-        # Import here to get fresh DB session
-        from ..database import SessionLocal
+        # Import here to get the TickTick client lazily
         from ..services.ticktick import TickTickClient
 
         with SessionLocal() as db:
-            # Assume user_id=1 (default user)
             try:
-                client = TickTickClient(user_id=1, db=db)
+                client = TickTickClient(user_id=user_id, db=db)
                 await client.delete_task(task_id, project_id)
                 logger.info(
                     f"Deleted task {task_id} from project {project_id} in TickTick"
