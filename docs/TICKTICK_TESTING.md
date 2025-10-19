@@ -113,13 +113,13 @@ async def test_create_task(
 ):
     """Test endpoint to create a task."""
     client = TickTickClient(user_id, db)
-    
+
     task = await client.create_task(
         title=title,
         content=f"Test task created from Speakly at {datetime.utcnow().isoformat()}",
         tags=["speakly", "test"],
     )
-    
+
     return {"success": True, "task": task}
 ```
 
@@ -182,7 +182,7 @@ TICKTICK_CLIENT_SECRET=your_client_secret
 
 ### **"Token exchange failed"**
 
-**Solution:** 
+**Solution:**
 1. Check that the redirect URI in TickTick app settings matches exactly: `http://localhost:8000/api/ticktick/callback`
 2. Make sure you're using the authorization code immediately (it expires quickly)
 

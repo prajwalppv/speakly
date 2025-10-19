@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -20,7 +20,7 @@
     --color-blue-dim: #2563eb;
     --color-bone: #e8dcc8;
     --color-bone-dim: #b8a890;
-    
+
     /* Semantic Colors */
     --color-bg: var(--color-black);
     --color-bg-elevated: var(--color-black-soft);
@@ -29,7 +29,7 @@
     --color-accent: var(--color-gold);
     --color-success: var(--color-green);
     --color-primary: var(--color-blue);
-    
+
     /* shadcn/ui CSS Variables */
     --background: 0 0% 4%; /* #0a0a0a */
     --foreground: 40 25% 85%; /* #e8dcc8 */
@@ -51,24 +51,29 @@
     --input: 45 40% 40%;
     --ring: 45 70% 53%;
     --radius: 0.5rem;
-    
+
     /* Typography */
-    --font-display: 'Space Grotesk', sans-serif;
-    --font-body: 'Space Grotesk', sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    --font-display: "Space Grotesk", sans-serif;
+    --font-body: "Space Grotesk", sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
   }
 
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply bg-black text-bone font-body antialiased;
     margin: 0;
     font-size: 16px;
     line-height: 1.6;
     min-height: 100vh;
-    background: radial-gradient(ellipse at top, #0f0f12 0%, #0a0a0a 50%, #000000 100%);
+    background: radial-gradient(
+      ellipse at top,
+      #0f0f12 0%,
+      #0a0a0a 50%,
+      #000000 100%
+    );
     background-attachment: fixed;
   }
 }

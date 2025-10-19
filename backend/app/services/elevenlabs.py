@@ -42,14 +42,17 @@ class ElevenLabsClient:
         # Return mock response in developer mode
         if settings.developer_mode:
             import uuid
+
             mock_id = str(uuid.uuid4())[:16]
-            logger.info(f"Developer mode: returning mock ElevenLabs response with ID {mock_id}")
+            logger.info(
+                f"Developer mode: returning mock ElevenLabs response with ID {mock_id}"
+            )
             return {
                 "message": "[MOCK] Request accepted. Transcription will be sent to webhook.",
                 "request_id": f"mock_request_{mock_id}",
                 "transcription_id": f"mock_transcription_{mock_id}",
             }
-            
+
         if not self.is_configured:
             raise ElevenLabsNotConfiguredError("ElevenLabs API key is not configured.")
         if not audio_path.exists():
@@ -76,29 +79,57 @@ class ElevenLabsClient:
             payload["webhook_metadata"] = encoded_metadata
 
         try:
-            with httpx.Client(base_url=self.base_url, headers=headers, timeout=self._timeout) as client:
+            with httpx.Client(
+                base_url=self.base_url, headers=headers, timeout=self._timeout
+            ) as client:
                 with audio_path.open("rb") as file_obj:
                     response = client.post(
                         "/v1/speech-to-text",
-                        files={"file": (audio_path.name, file_obj, "application/octet-stream")},
+                        files={
+                            "file": (
+                                audio_path.name,
+                                file_obj,
+                                "application/octet-stream",
+                            )
+                        },
                         data=payload,
                     )
-        except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException) as exc:  # pragma: no cover
-            logger.error("Network error connecting to ElevenLabs", extra={"extra_data": {"error": str(exc)}})
+        except (
+            httpx.ReadError,
+            httpx.ConnectError,
+            httpx.TimeoutException,
+        ) as exc:  # pragma: no cover
+            logger.error(
+                "Network error connecting to ElevenLabs",
+                extra={"extra_data": {"error": str(exc)}},
+            )
             raise ElevenLabsError(f"Network error: {exc}") from exc
 
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:  # pragma: no cover - network errors
-            logger.error("ElevenLabs API error", extra={"extra_data": {"status": response.status_code, "body": response.text[:500]}})
-            raise ElevenLabsError(f"API error {response.status_code}: {response.text[:200]}") from exc
+            logger.error(
+                "ElevenLabs API error",
+                extra={
+                    "extra_data": {
+                        "status": response.status_code,
+                        "body": response.text[:500],
+                    }
+                },
+            )
+            raise ElevenLabsError(
+                f"API error {response.status_code}: {response.text[:200]}"
+            ) from exc
 
         try:
             data = response.json()
         except Exception as exc:  # pragma: no cover
-            logger.error("Failed to parse ElevenLabs response", extra={"extra_data": {"body": response.text[:500]}})
+            logger.error(
+                "Failed to parse ElevenLabs response",
+                extra={"extra_data": {"body": response.text[:500]}},
+            )
             raise ElevenLabsError(f"Invalid JSON response: {exc}") from exc
-            
+
         logger.debug("ElevenLabs submission successful", extra={"extra_data": data})
         return data
 

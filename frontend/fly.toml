@@ -25,7 +25,7 @@ primary_region = "sjc"  # San Jose - change to your preferred region
 [[services]]
   protocol = "tcp"
   internal_port = 80
-  
+
   [[services.ports]]
     port = 80
     handlers = ["http"]

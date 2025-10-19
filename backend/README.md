@@ -35,24 +35,27 @@
 ### Local Development
 
 ```bash
-# 1. Install dependencies
-pip install -r requirements-dev.txt
+# 1. Install dependencies (inside backend/)
+uv sync --extra dev
 
 # 2. Set up environment
 cp .env.example .env
 # Edit .env with your API keys
 
 # 3. Run database migrations
-alembic upgrade head
+uv run alembic upgrade head
 
 # 4. Start server
-uvicorn app.main:app --reload --port 8000
+uv run uvicorn app.main:app --reload --port 8000
 
 # 5. Run tests
-pytest tests/
+uv run pytest tests/
 
 # 6. Check coverage
-pytest tests/ --cov=app --cov-report=html
+uv run pytest tests/ --cov=app --cov-report=html
+
+# 7. Static type checks
+uv run mypy
 ```
 
 ### Docker Development
@@ -272,11 +275,11 @@ Proprietary - All rights reserved
 
 ## 🎉 Production Ready!
 
-✅ 499 passing tests  
-✅ 74.65% code coverage  
-✅ Privacy-first architecture  
-✅ Scalable deployment  
-✅ Comprehensive error handling  
-✅ Beautiful UI  
+✅ 499 passing tests
+✅ 74.65% code coverage
+✅ Privacy-first architecture
+✅ Scalable deployment
+✅ Comprehensive error handling
+✅ Beautiful UI
 
 **Deploy with confidence! 🚀**

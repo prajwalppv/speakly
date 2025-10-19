@@ -52,9 +52,9 @@ backend-tests: ## Run backend pytest suite inside container
 frontend-build: ## Build the Vite project for production assets
 	cd frontend && npm run build
 
-backend-format: ## Format backend code (ruff + black) if available
-	cd backend && ruff check app --fix
-	cd backend && ruff format app
+backend-format: ## Format backend code (isort + black)
+	cd backend && uv run isort app
+	cd backend && uv run black app
 
 # ---------------------------------------------------------------------------
 # Fly.io deployment helpers

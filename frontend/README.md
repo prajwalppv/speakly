@@ -72,6 +72,7 @@ frontend/
 ## 🎨 Design System
 
 ### Colors
+
 - **Background**: `#0a0a0a` (deep black)
 - **Gold**: `#d4af37` (primary accent)
 - **Teal**: `#2dd4bf` (success states)
@@ -79,6 +80,7 @@ frontend/
 - **Bone**: `#e8dcc8` (text)
 
 ### Components
+
 - **Cards**: Glassmorphism with gold borders
 - **Buttons**: Blue gradient with hover lift
 - **Badges**: Color-coded status indicators
@@ -104,6 +106,7 @@ VITE_BACKEND_URL_INTERNAL=http://localhost:8000
 ### API Client
 
 The app automatically handles dev vs production:
+
 - **Dev**: Uses Vite proxy (`/api/*` → `http://localhost:8000/api/*`)
 - **Production**: Direct connection to backend URL
 
@@ -114,6 +117,7 @@ The app automatically handles dev vs production:
 ### BulkUploader
 
 **Features:**
+
 - Drag & drop multiple files
 - Real-time upload progress
 - Timestamp-based ordering
@@ -122,15 +126,17 @@ The app automatically handles dev vs production:
 - Integrated browser-based voice recorder that feeds the upload queue
 
 **Usage:**
-```tsx
-import BulkUploader from './components/BulkUploader';
 
-<BulkUploader />
+```tsx
+import BulkUploader from "./components/BulkUploader";
+
+<BulkUploader />;
 ```
 
 ### SessionsDashboard
 
 **Features:**
+
 - Collapsible session cards
 - AI-generated summaries
 - Todo list with sync status
@@ -139,18 +145,20 @@ import BulkUploader from './components/BulkUploader';
 - Auto-refresh every 5s
 
 **Usage:**
-```tsx
-import SessionsDashboard from './components/SessionsDashboard';
 
-<SessionsDashboard 
+```tsx
+import SessionsDashboard from "./components/SessionsDashboard";
+
+<SessionsDashboard
   isOpen={showDashboard}
   onClose={() => setShowDashboard(false)}
-/>
+/>;
 ```
 
 ### SettingsModal
 
 **Features:**
+
 - TickTick OAuth integration
 - Connection status
 - Project selection
@@ -201,12 +209,14 @@ npm run lint
 See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment guide.
 
 **Quick Deploy (Vercel):**
+
 ```bash
 npm install -g vercel
 vercel --prod
 ```
 
 **Environment Variable:**
+
 ```bash
 vercel env add VITE_API_BASE_URL
 # Enter: https://your-backend.railway.app
@@ -222,6 +232,7 @@ vercel env add VITE_API_BASE_URL
 - **Lighthouse Score**: 90+
 
 **Optimizations:**
+
 - Code splitting with React.lazy
 - Image optimization
 - Tree shaking (Vite)
@@ -233,18 +244,21 @@ vercel env add VITE_API_BASE_URL
 ## 🎯 Features In Detail
 
 ### Bulk Upload
+
 - **Capacity**: Up to 50 files
 - **Ordering**: Chronological by filename timestamp
 - **Progress**: Real-time per-file status
 - **Error Isolation**: One failure doesn't stop others
 
 ### Sessions Dashboard
+
 - **View Modes**: List with expand/collapse
 - **Filters**: All, Completed, Processing, Error
 - **Auto-refresh**: 5 second intervals
 - **Details**: Transcription, summary, todos, metadata
 
 ### TickTick Integration
+
 - **OAuth Flow**: Secure authentication
 - **Auto-sync**: Tasks sync to dedicated project
 - **Status**: Visual sync indicators
@@ -255,12 +269,14 @@ vercel env add VITE_API_BASE_URL
 ## 🎨 Styling
 
 ### CSS Architecture
+
 - **Global styles**: `App.css`
 - **Component styles**: Inline with CSS modules
 - **Theme**: CSS variables for colors
 - **Responsive**: Mobile-first breakpoints
 
 ### Animations
+
 - **Smooth transitions**: 0.3s ease
 - **Hover effects**: Transform + glow
 - **Modal animations**: Fade + scale
@@ -270,10 +286,10 @@ vercel env add VITE_API_BASE_URL
 
 ## 🔐 Security
 
-✅ **No secrets in frontend** - Only backend URL  
-✅ **HTTPS enforced** - Production uses SSL  
-✅ **CORS protection** - Backend validates origins  
-✅ **Environment vars** - Never committed to git  
+✅ **No secrets in frontend** - Only backend URL
+✅ **HTTPS enforced** - Production uses SSL
+✅ **CORS protection** - Backend validates origins
+✅ **Environment vars** - Never committed to git
 
 ---
 
@@ -290,6 +306,7 @@ npm install
 ### API Calls Failing
 
 Check backend URL:
+
 ```bash
 # Should proxy in dev
 VITE_API_BASE_URL=proxy
@@ -301,6 +318,7 @@ VITE_API_BASE_URL=https://backend.railway.app
 ### CORS Errors
 
 Update backend CORS settings:
+
 ```bash
 # Backend environment
 SPEAKLY_CORS_ORIGINS=https://your-frontend.vercel.app
@@ -316,11 +334,11 @@ Proprietary - All rights reserved
 
 ## 🎉 Ready for Production!
 
-✅ Modern React 18 + TypeScript  
-✅ Beautiful gold/teal UI  
-✅ Bulk upload with ordering  
-✅ Real-time updates  
-✅ Mobile responsive  
-✅ Production optimized  
+✅ Modern React 18 + TypeScript
+✅ Beautiful gold/teal UI
+✅ Bulk upload with ordering
+✅ Real-time updates
+✅ Mobile responsive
+✅ Production optimized
 
 **Deploy with confidence! 🚀**

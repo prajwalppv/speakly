@@ -1,7 +1,8 @@
 import axios from "axios";
 
 const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim();
-const RESOLVED_BASE_URL = RAW_BASE_URL && RAW_BASE_URL !== "proxy" ? RAW_BASE_URL : "";
+const RESOLVED_BASE_URL =
+  RAW_BASE_URL && RAW_BASE_URL !== "proxy" ? RAW_BASE_URL : "";
 
 // When RAW_BASE_URL is omitted or set to the sentinel value "proxy", fall back
 // to a relative request so the Vite dev server proxy (or same-origin hosting)
@@ -121,7 +122,7 @@ export async function uploadAudio(file: File): Promise<UploadResponse> {
   formData.append("audio", file, file.name);
 
   const response = await client.post<UploadResponse>("/api/audio", formData, {
-    headers: { "Content-Type": "multipart/form-data" }
+    headers: { "Content-Type": "multipart/form-data" },
   });
 
   return response.data;
@@ -141,21 +142,29 @@ export interface BulkUploadResponse {
   results: BulkUploadResult[];
 }
 
-export async function uploadAudioBulk(files: File[]): Promise<BulkUploadResponse> {
+export async function uploadAudioBulk(
+  files: File[],
+): Promise<BulkUploadResponse> {
   const formData = new FormData();
   files.forEach((file) => {
     formData.append("files", file, file.name);
   });
 
-  const response = await client.post<BulkUploadResponse>("/api/audio/bulk", formData, {
-    headers: { "Content-Type": "multipart/form-data" }
-  });
+  const response = await client.post<BulkUploadResponse>(
+    "/api/audio/bulk",
+    formData,
+    {
+      headers: { "Content-Type": "multipart/form-data" },
+    },
+  );
 
   return response.data;
 }
 
 export async function fetchSession(sessionId: number): Promise<SessionRecord> {
-  const response = await client.get<SessionRecord>(`/api/sessions/${sessionId}`);
+  const response = await client.get<SessionRecord>(
+    `/api/sessions/${sessionId}`,
+  );
   return response.data;
 }
 
@@ -167,8 +176,12 @@ export interface SessionFilterParams {
   to?: string;
 }
 
-export async function fetchSessions(params: SessionFilterParams = {}): Promise<SessionRecord[]> {
-  const response = await client.get<SessionRecord[]>("/api/sessions", { params });
+export async function fetchSessions(
+  params: SessionFilterParams = {},
+): Promise<SessionRecord[]> {
+  const response = await client.get<SessionRecord[]>("/api/sessions", {
+    params,
+  });
   return response.data;
 }
 
@@ -181,20 +194,31 @@ export interface SessionBulkDeleteResult {
   not_found: number[];
 }
 
-export async function deleteSessionsBulk(sessionIds: number[]): Promise<SessionBulkDeleteResult> {
-  const response = await client.post<SessionBulkDeleteResult>("/api/sessions/bulk-delete", {
-    session_ids: sessionIds,
-  });
+export async function deleteSessionsBulk(
+  sessionIds: number[],
+): Promise<SessionBulkDeleteResult> {
+  const response = await client.post<SessionBulkDeleteResult>(
+    "/api/sessions/bulk-delete",
+    {
+      session_ids: sessionIds,
+    },
+  );
   return response.data;
 }
 
-export async function approveSession(sessionId: number): Promise<SessionRecord> {
-  const response = await client.post<SessionRecord>(`/api/sessions/${sessionId}/approve`);
+export async function approveSession(
+  sessionId: number,
+): Promise<SessionRecord> {
+  const response = await client.post<SessionRecord>(
+    `/api/sessions/${sessionId}/approve`,
+  );
   return response.data;
 }
 
 export async function rejectSession(sessionId: number): Promise<SessionRecord> {
-  const response = await client.post<SessionRecord>(`/api/sessions/${sessionId}/reject`);
+  const response = await client.post<SessionRecord>(
+    `/api/sessions/${sessionId}/reject`,
+  );
   return response.data;
 }
 
@@ -208,8 +232,13 @@ export async function fetchUserPreferences(): Promise<UserPreferences> {
   return response.data;
 }
 
-export async function updateUserPreferences(preferences: UserPreferences): Promise<UserPreferences> {
-  const response = await client.put<UserPreferences>("/api/user/preferences", preferences);
+export async function updateUserPreferences(
+  preferences: UserPreferences,
+): Promise<UserPreferences> {
+  const response = await client.put<UserPreferences>(
+    "/api/user/preferences",
+    preferences,
+  );
   return response.data;
 }
 
@@ -234,13 +263,14 @@ export interface TickTickProjectsResponse {
 }
 
 export async function getTickTickStatus(): Promise<TickTickStatusResponse> {
-  const response = await client.get<TickTickStatusResponse>(`/api/ticktick/status`);
+  const response =
+    await client.get<TickTickStatusResponse>(`/api/ticktick/status`);
   return response.data;
 }
 
 export async function connectTickTick(): Promise<void> {
   const response = await client.get<{ authorization_url: string }>(
-    `/api/ticktick/connect/url`
+    `/api/ticktick/connect/url`,
   );
   window.location.href = response.data.authorization_url;
 }
@@ -250,7 +280,9 @@ export async function disconnectTickTick(): Promise<void> {
 }
 
 export async function getTickTickProjects(): Promise<TickTickProjectsResponse> {
-  const response = await client.get<TickTickProjectsResponse>(`/api/ticktick/projects`);
+  const response = await client.get<TickTickProjectsResponse>(
+    `/api/ticktick/projects`,
+  );
   return response.data;
 }
 
@@ -271,17 +303,21 @@ export interface EditTranscriptionResponse {
 
 export async function editTranscription(
   transcriptionId: number,
-  request: EditTranscriptionRequest
+  request: EditTranscriptionRequest,
 ): Promise<EditTranscriptionResponse> {
   const response = await client.put<EditTranscriptionResponse>(
     `/api/transcriptions/${transcriptionId}`,
-    request
+    request,
   );
   return response.data;
 }
 
-export async function getTranscriptionHistory(transcriptionId: number): Promise<any[]> {
-  const response = await client.get(`/api/transcriptions/${transcriptionId}/history`);
+export async function getTranscriptionHistory(
+  transcriptionId: number,
+): Promise<any[]> {
+  const response = await client.get(
+    `/api/transcriptions/${transcriptionId}/history`,
+  );
   return response.data;
 }
 
@@ -301,20 +337,23 @@ export interface UpdateTodoRequest {
 
 export async function createTodo(
   sessionId: number,
-  request: CreateTodoRequest
+  request: CreateTodoRequest,
 ): Promise<TodoRecord> {
   const response = await client.post<TodoRecord>(
     `/api/todos/sessions/${sessionId}/todos`,
-    request
+    request,
   );
   return response.data;
 }
 
 export async function updateTodo(
   todoId: number,
-  request: UpdateTodoRequest
+  request: UpdateTodoRequest,
 ): Promise<TodoRecord> {
-  const response = await client.put<TodoRecord>(`/api/todos/${todoId}`, request);
+  const response = await client.put<TodoRecord>(
+    `/api/todos/${todoId}`,
+    request,
+  );
   return response.data;
 }
 
@@ -328,13 +367,17 @@ export async function resyncTodo(todoId: number): Promise<{ message: string }> {
 }
 
 // Session Retry
-export async function retrySession(sessionId: number): Promise<{ message: string; transcriptions_reset: number }> {
+export async function retrySession(
+  sessionId: number,
+): Promise<{ message: string; transcriptions_reset: number }> {
   const response = await client.post(`/api/sessions/${sessionId}/retry`);
   return response.data;
 }
 
 // Session Regenerate
-export async function regenerateSession(sessionId: number): Promise<{ message: string; status: string }> {
+export async function regenerateSession(
+  sessionId: number,
+): Promise<{ message: string; status: string }> {
   const response = await client.post(`/api/sessions/${sessionId}/regenerate`);
   return response.data;
 }
@@ -400,14 +443,19 @@ export interface JourneyReportGenerateRequest {
 }
 
 export async function fetchJourneyPreference(): Promise<JourneyPreference> {
-  const response = await client.get<JourneyPreference>("/api/journeys/preferences");
+  const response = await client.get<JourneyPreference>(
+    "/api/journeys/preferences",
+  );
   return response.data;
 }
 
 export async function updateJourneyPreference(
-  payload: JourneyPreferenceUpdateRequest
+  payload: JourneyPreferenceUpdateRequest,
 ): Promise<JourneyPreference> {
-  const response = await client.put<JourneyPreference>("/api/journeys/preferences", payload);
+  const response = await client.put<JourneyPreference>(
+    "/api/journeys/preferences",
+    payload,
+  );
   return response.data;
 }
 
@@ -424,15 +472,20 @@ export async function fetchJourneyReports(params?: {
   }
 
   const url =
-    query.toString().length > 0 ? `/api/journeys/reports?${query.toString()}` : "/api/journeys/reports";
+    query.toString().length > 0
+      ? `/api/journeys/reports?${query.toString()}`
+      : "/api/journeys/reports";
   const response = await client.get<JourneyReportList>(url);
   return response.data;
 }
 
 export async function triggerJourneyReport(
-  payload?: JourneyReportGenerateRequest
+  payload?: JourneyReportGenerateRequest,
 ): Promise<JourneyReport> {
-  const response = await client.post<JourneyReport>("/api/journeys/reports/generate", payload ?? {});
+  const response = await client.post<JourneyReport>(
+    "/api/journeys/reports/generate",
+    payload ?? {},
+  );
   return response.data;
 }
 

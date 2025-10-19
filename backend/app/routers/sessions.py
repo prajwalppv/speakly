@@ -11,24 +11,23 @@ from sqlalchemy.orm import Session, joinedload
 from ..auth import get_current_user
 from ..config import settings
 from ..database import get_session
+from ..models import LlmRun
 from ..models import Session as SessionModel
-from ..models import User
-from ..models import SpeakerProfile, SpeakerSegment
-from ..models import Tag, SessionTag
+from ..models import SessionTag, SpeakerProfile, SpeakerSegment
 from ..models import Todo as TodoModel
 from ..models import Transcription as TranscriptionModel
-from ..models import LlmRun
-from ..services.task_sync_service import schedule_task_sync
+from ..models import User
 from ..schemas import (
+    SessionBulkDeleteRequest,
+    SessionBulkDeleteResponse,
     SessionResponse,
     SpeakerSegmentResponse,
     SummaryResponse,
-    SessionBulkDeleteRequest,
-    SessionBulkDeleteResponse,
     TagResponse,
     TodoResponse,
     TranscriptionResponse,
 )
+from ..services.task_sync_service import schedule_task_sync
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -103,7 +102,7 @@ def _serialize_tag(session_tag: SessionTag) -> TagResponse:
         color=tag.color,
         auto_generated=tag.auto_generated,
         usage_count=0,  # Not calculated per-session
-        created_at=tag.created_at
+        created_at=tag.created_at,
     )
 
 
@@ -113,7 +112,7 @@ def _serialize_session(model: SessionModel) -> SessionResponse:
     if model.summary_run and model.summary_run.metadata_payload:
         task_updates = model.summary_run.metadata_payload.get("task_updates", [])
         task_updates_count = len(task_updates) if task_updates else 0
-    
+
     return SessionResponse(
         id=model.id,
         status=model.status,
@@ -247,23 +246,28 @@ def _delete_session_record(session: SessionModel, db: Session) -> None:
 @router.get("", response_model=list[SessionResponse])
 async def list_sessions(
     has_pj: bool | None = Query(default=None),
-    speaker: str | None = Query(default=None, description="Filter by speaker label or profile"),
+    speaker: str | None = Query(
+        default=None, description="Filter by speaker label or profile"
+    ),
     q: str | None = Query(default=None, description="Search transcript text"),
     from_date: datetime | None = Query(default=None, alias="from"),
     to_date: datetime | None = Query(default=None, alias="to"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> list[SessionResponse]:
-    
     # Filter by authenticated user
-    speaker_query = db.query(SessionModel).filter(
-        SessionModel.user_id == current_user.id
-    ).options(
-        joinedload(SessionModel.transcriptions),
-        joinedload(SessionModel.speaker_segments).joinedload(SpeakerSegment.speaker_profile),
-        joinedload(SessionModel.todos),
-        joinedload(SessionModel.summary_run),
-        joinedload(SessionModel.session_tags).joinedload(SessionTag.tag),
+    speaker_query = (
+        db.query(SessionModel)
+        .filter(SessionModel.user_id == current_user.id)
+        .options(
+            joinedload(SessionModel.transcriptions),
+            joinedload(SessionModel.speaker_segments).joinedload(
+                SpeakerSegment.speaker_profile
+            ),
+            joinedload(SessionModel.todos),
+            joinedload(SessionModel.summary_run),
+            joinedload(SessionModel.session_tags).joinedload(SessionTag.tag),
+        )
     )
 
     if has_pj is not None:
@@ -274,11 +278,13 @@ async def list_sessions(
         if norm in settings.pj_voice_tag_set:
             speaker_query = speaker_query.filter(SessionModel.has_pj.is_(True))
         else:
-            speaker_query = speaker_query.join(SessionModel.speaker_segments).join(
-                SpeakerSegment.speaker_profile, isouter=True
-            ).filter(
-                (SpeakerSegment.speaker_label.ilike(f"%{speaker}%"))
-                | (SpeakerProfile.name.ilike(f"%{speaker}%"))
+            speaker_query = (
+                speaker_query.join(SessionModel.speaker_segments)
+                .join(SpeakerSegment.speaker_profile, isouter=True)
+                .filter(
+                    (SpeakerSegment.speaker_label.ilike(f"%{speaker}%"))
+                    | (SpeakerProfile.name.ilike(f"%{speaker}%"))
+                )
             )
 
     if q:
@@ -403,7 +409,9 @@ def approve_session(
     if has_tasks_to_sync:
         session.status = "processing"
     else:
-        session.status = "completed_with_warnings" if session.last_error else "completed"
+        session.status = (
+            "completed_with_warnings" if session.last_error else "completed"
+        )
 
     db.commit()
 
@@ -479,50 +487,54 @@ def retry_session(
 ) -> dict[str, str]:
     """
     Retry processing for a failed session.
-    
+
     Args:
         session_id: ID of session to retry
         db: Database session
-    
+
     Returns:
         Status message
-    
+
     Raises:
         HTTPException: 404 if session not found
     """
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.user_id == current_user.id  # Ensure user owns this session
-    ).first()
-    
+    session = (
+        db.query(SessionModel)
+        .filter(
+            SessionModel.id == session_id,
+            SessionModel.user_id == current_user.id,  # Ensure user owns this session
+        )
+        .first()
+    )
+
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     # Clear error and reset to pending
     session.last_error = None
     session.status = "pending"
-    
+
     # Find failed transcriptions
-    failed_transcriptions = [
-        t for t in session.transcriptions
-        if t.status == "error"
-    ]
-    
+    failed_transcriptions = [t for t in session.transcriptions if t.status == "error"]
+
     for transcription in failed_transcriptions:
         transcription.status = "pending"
         transcription.error = None
-    
+
     db.commit()
-    
+
     # Re-trigger processing (would call services in production)
     logger.info(
         f"Retrying session {session_id}",
-        extra={"session_id": session_id, "transcription_count": len(failed_transcriptions)}
+        extra={
+            "session_id": session_id,
+            "transcription_count": len(failed_transcriptions),
+        },
     )
-    
+
     return {
         "message": f"Session {session_id} queued for retry",
-        "transcriptions_reset": len(failed_transcriptions)
+        "transcriptions_reset": len(failed_transcriptions),
     }
 
 
@@ -534,47 +546,51 @@ def regenerate_summary_and_tasks(
 ) -> dict[str, str]:
     """
     Regenerate summary and tasks from the current transcript.
-    
+
     Useful after editing a transcript to get fresh AI insights.
-    
+
     Args:
         session_id: ID of session to regenerate
         db: Database session
-    
+
     Returns:
         Status message
-    
+
     Raises:
         HTTPException: 404 if session not found, 400 if no transcript available
     """
+    import asyncio
+    import threading
+
     from ..services.llm import _run_summary_and_todos
-    import asyncio, threading
-    
+
     logger.info(
         f"🔄 REGENERATE ENDPOINT CALLED for session {session_id}",
-        extra={"session_id": session_id}
+        extra={"session_id": session_id},
     )
-    
-    session = db.query(SessionModel).filter(
-        SessionModel.id == session_id,
-        SessionModel.user_id == current_user.id  # Ensure user owns this session
-    ).first()
-    
+
+    session = (
+        db.query(SessionModel)
+        .filter(
+            SessionModel.id == session_id,
+            SessionModel.user_id == current_user.id,  # Ensure user owns this session
+        )
+        .first()
+    )
+
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     # Check if we have a transcript to work with
     transcription = session.transcriptions[0] if session.transcriptions else None
     if not transcription or not transcription.text:
         raise HTTPException(
-            status_code=400,
-            detail="No transcript available to regenerate from"
+            status_code=400, detail="No transcript available to regenerate from"
         )
-    
+
     # Clear old tasks (delete from TickTick if synced)
     from ..services.task_sync_service import task_sync_service
-    import asyncio
-    
+
     old_todos = session.todos[:]
     for todo in old_todos:
         # Delete from TickTick if synced
@@ -585,38 +601,49 @@ def regenerate_summary_and_tasks(
                 try:
                     loop.run_until_complete(
                         task_sync_service.delete_from_ticktick(
-                            todo.ticktick_task_id,
-                            todo.ticktick_project_id
+                            todo.ticktick_task_id, todo.ticktick_project_id
                         )
                     )
                 finally:
                     loop.close()
             except Exception as e:
-                logger.warning(f"Failed to delete task {todo.ticktick_task_id} from TickTick: {e}")
-        
+                logger.warning(
+                    f"Failed to delete task {todo.ticktick_task_id} from TickTick: {e}"
+                )
+
         db.delete(todo)
-    
+
     # Clear old summary/LLM run
     if session.summary_run:
         db.delete(session.summary_run)
         session.summary_run_id = None
-    
+
     # Clear old tags
     from ..models import SessionTag
+
     db.query(SessionTag).filter(SessionTag.session_id == session_id).delete()
-    
+
     # Reset session status for re-processing
     session.status = "processing"
     session.todo_count = 0
     session.last_error = None  # Clear any previous errors
     session.review_status = "pending"
     session.reviewed_at = None
-    
+
     # Reset ALL processing stages to pending (fresh start)
-    from datetime import datetime
     session.processing_stages = {
-        "uploaded": {"status": "completed", "timestamp": session.created_at.isoformat()},
-        "transcribing": {"status": "completed", "timestamp": session.last_transcribed_at.isoformat() if session.last_transcribed_at else None},
+        "uploaded": {
+            "status": "completed",
+            "timestamp": session.created_at.isoformat(),
+        },
+        "transcribing": {
+            "status": "completed",
+            "timestamp": (
+                session.last_transcribed_at.isoformat()
+                if session.last_transcribed_at
+                else None
+            ),
+        },
         "diarizing": {"status": "pending", "timestamp": None},
         "summarizing": {"status": "pending", "timestamp": None},
         "extracting_tasks": {"status": "pending", "timestamp": None},
@@ -624,30 +651,30 @@ def regenerate_summary_and_tasks(
         "review": {"status": "pending", "timestamp": None},
         "syncing_tasks": {"status": "pending", "timestamp": None},
     }
-    
+
     db.commit()
-    
+
     logger.info(
         f"Cleared {len(old_todos)} old tasks and summary for session {session_id}",
-        extra={"session_id": session_id, "tasks_cleared": len(old_todos)}
+        extra={"session_id": session_id, "tasks_cleared": len(old_todos)},
     )
-    
+
     # Run LLM processing in background thread
     def run_processing():
         # Need to get transcription_id
         _run_summary_and_todos(session_id, transcription.id)
-    
+
     thread = threading.Thread(target=run_processing, daemon=True)
     thread.start()
-    
+
     logger.info(
         f"Regenerating summary and tasks for session {session_id}",
-        extra={"session_id": session_id}
+        extra={"session_id": session_id},
     )
-    
+
     return {
         "message": f"Regeneration started for session {session_id}",
-        "status": "processing"
+        "status": "processing",
     }
 
 

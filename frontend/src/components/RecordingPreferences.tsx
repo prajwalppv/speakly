@@ -59,8 +59,8 @@ export default function RecordingPreferences() {
             Recording Preferences
           </h3>
           <p className="text-sm text-bone-dim">
-            Decide whether new recordings are stored automatically after processing,
-            or if you want to review and approve them first.
+            Decide whether new recordings are stored automatically after
+            processing, or if you want to review and approve them first.
           </p>
         </div>
         <motion.button
@@ -77,7 +77,9 @@ export default function RecordingPreferences() {
           ) : (
             <Eye size={16} />
           )}
-          <span>{autoApproveEnabled ? "Auto-approve on" : "Manual review on"}</span>
+          <span>
+            {autoApproveEnabled ? "Auto-approve on" : "Manual review on"}
+          </span>
         </motion.button>
       </div>
 
@@ -103,7 +105,8 @@ export default function RecordingPreferences() {
               : "New recordings pause in review until you approve or discard them."}
           </li>
           <li>
-            You can switch this setting anytime—existing recordings keep their current review status.
+            You can switch this setting anytime—existing recordings keep their
+            current review status.
           </li>
         </ul>
       )}

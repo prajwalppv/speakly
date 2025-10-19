@@ -5,9 +5,8 @@ Revises: 001
 Create Date: 2025-02-05 00:00:00
 """
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "002"
 down_revision = "001"
@@ -18,7 +17,9 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "report_preferences",
-        sa.Column("email_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column(
+            "email_enabled", sa.Boolean(), nullable=False, server_default=sa.true()
+        ),
     )
 
 

@@ -56,26 +56,28 @@ def edit_transcription(
 ) -> dict[str, Any]:
     """
     Edit a transcription and save to history.
-    
+
     Args:
         transcription_id: ID of transcription to edit
         request: Edit request with new text
         db: Database session
-    
+
     Returns:
         Updated transcription data
-    
+
     Raises:
         HTTPException: 404 if transcription not found
     """
-    transcription = db.query(Transcription).filter(Transcription.id == transcription_id).first()
-    
+    transcription = (
+        db.query(Transcription).filter(Transcription.id == transcription_id).first()
+    )
+
     if not transcription:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transcription {transcription_id} not found"
+            detail=f"Transcription {transcription_id} not found",
         )
-    
+
     # Save edit to history
     edit = TranscriptionEdit(
         transcription_id=transcription_id,
@@ -86,26 +88,29 @@ def edit_transcription(
         notes=request.notes,
     )
     db.add(edit)
-    
+
     # Update transcription
     transcription.text = request.text
     db.commit()
     db.refresh(transcription)
-    
+
     logger.info(
         f"Transcription {transcription_id} edited by user {request.user_id}",
         extra={
             "transcription_id": transcription_id,
             "user_id": request.user_id,
-            "edit_length": len(request.text)
-        }
+            "edit_length": len(request.text),
+        },
     )
-    
+
     # Get edit count and last edit time
-    edits = db.query(TranscriptionEdit).filter(
-        TranscriptionEdit.transcription_id == transcription_id
-    ).order_by(TranscriptionEdit.created_at.desc()).all()
-    
+    edits = (
+        db.query(TranscriptionEdit)
+        .filter(TranscriptionEdit.transcription_id == transcription_id)
+        .order_by(TranscriptionEdit.created_at.desc())
+        .all()
+    )
+
     return {
         "id": transcription.id,
         "text": transcription.text,
@@ -115,36 +120,43 @@ def edit_transcription(
     }
 
 
-@router.get("/{transcription_id}/history", response_model=list[TranscriptionEditResponse])
+@router.get(
+    "/{transcription_id}/history", response_model=list[TranscriptionEditResponse]
+)
 def get_edit_history(
     transcription_id: int,
     db: Session = Depends(get_session),
 ) -> list[dict[str, Any]]:
     """
     Get edit history for a transcription.
-    
+
     Args:
         transcription_id: ID of transcription
         db: Database session
-    
+
     Returns:
         List of edits in reverse chronological order
-    
+
     Raises:
         HTTPException: 404 if transcription not found
     """
-    transcription = db.query(Transcription).filter(Transcription.id == transcription_id).first()
-    
+    transcription = (
+        db.query(Transcription).filter(Transcription.id == transcription_id).first()
+    )
+
     if not transcription:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transcription {transcription_id} not found"
+            detail=f"Transcription {transcription_id} not found",
         )
-    
-    edits = db.query(TranscriptionEdit).filter(
-        TranscriptionEdit.transcription_id == transcription_id
-    ).order_by(TranscriptionEdit.created_at.desc()).all()
-    
+
+    edits = (
+        db.query(TranscriptionEdit)
+        .filter(TranscriptionEdit.transcription_id == transcription_id)
+        .order_by(TranscriptionEdit.created_at.desc())
+        .all()
+    )
+
     return [
         {
             "id": edit.id,

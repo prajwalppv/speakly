@@ -28,7 +28,7 @@ We implemented a two-layer approach to handle this:
 SPEAKLY_LLM_MAX_CONCURRENT_REQUESTS=3
 ```
 
-**Code location**: 
+**Code location**:
 - Semaphore initialization: `_get_llm_semaphore()` function
 - Applied in: `schedule_summary_and_todos()` function
 
@@ -142,8 +142,8 @@ curl -X POST http://localhost:8000/api/audio/bulk \
 ## Dependencies
 
 - **tenacity** (>=8.0,<9.0): Retry library with exponential backoff
-  - Install: `pip install tenacity`
-  - Automatically installed via `requirements.txt`
+  - Install via project tooling: `uv sync --extra dev`
+  - Automatically managed in `pyproject.toml`
 
 ## Architecture Diagram
 

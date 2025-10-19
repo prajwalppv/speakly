@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { AlertTriangle, Calendar, Loader2, RefreshCcw, Sparkles, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Calendar,
+  Loader2,
+  RefreshCcw,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 
 import {
   JourneyCadence,
@@ -39,10 +46,11 @@ interface FormState {
 function formatDate(
   value: string | null | undefined,
   timeZone?: string,
-  withTime: boolean = true
+  withTime: boolean = true,
 ): string {
   if (!value) return "—";
-  const normalized = value.includes("Z") || value.includes("+") ? value : `${value}Z`;
+  const normalized =
+    value.includes("Z") || value.includes("+") ? value : `${value}Z`;
   const date = new Date(normalized);
   const options: Intl.DateTimeFormatOptions = {
     month: "short",
@@ -66,15 +74,22 @@ function formatPeriod(start: string, end: string, timeZone: string): string {
     year: "numeric",
     timeZone,
   };
-  const startDate = new Date(start.includes("Z") || start.includes("+") ? start : `${start}Z`);
-  const endDate = new Date(end.includes("Z") || end.includes("+") ? end : `${end}Z`);
+  const startDate = new Date(
+    start.includes("Z") || start.includes("+") ? start : `${start}Z`,
+  );
+  const endDate = new Date(
+    end.includes("Z") || end.includes("+") ? end : `${end}Z`,
+  );
   return `${new Intl.DateTimeFormat(undefined, options).format(startDate)} → ${new Intl.DateTimeFormat(
     undefined,
-    options
+    options,
   ).format(endDate)}`;
 }
 
-function mapStatus(status: JourneyReport["status"]): { badge: "completed" | "processing" | "pending" | "error"; label: string } {
+function mapStatus(status: JourneyReport["status"]): {
+  badge: "completed" | "processing" | "pending" | "error";
+  label: string;
+} {
   switch (status) {
     case "completed":
       return { badge: "completed", label: "Completed" };
@@ -105,7 +120,10 @@ export default function JourneysView() {
 
   const activeCadenceLabel = useMemo(() => {
     if (!preference) return "";
-    return cadenceOptions.find((option) => option.value === preference.cadence)?.label ?? preference.cadence;
+    return (
+      cadenceOptions.find((option) => option.value === preference.cadence)
+        ?.label ?? preference.cadence
+    );
   }, [preference]);
 
   const loadReports = async () => {
@@ -145,7 +163,10 @@ export default function JourneysView() {
     loadData();
   }, []);
 
-  const handlePreferenceChange = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+  const handlePreferenceChange = <K extends keyof FormState>(
+    key: K,
+    value: FormState[K],
+  ) => {
     setFormState((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
@@ -192,14 +213,22 @@ export default function JourneysView() {
     setGeneratingReport(true);
     setStatusMessage(null);
     try {
-      await triggerJourneyReport({ cadence: formState?.cadence ?? preference?.cadence });
-      setStatusMessage("Report generation started. It will appear here once ready.");
+      await triggerJourneyReport({
+        cadence: formState?.cadence ?? preference?.cadence,
+      });
+      setStatusMessage(
+        "Report generation started. It will appear here once ready.",
+      );
       await loadReports();
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 422) {
-        setStatusMessage("Invalid report window requested. Check your preferences and try again.");
+        setStatusMessage(
+          "Invalid report window requested. Check your preferences and try again.",
+        );
       } else {
-        setStatusMessage("Failed to trigger report generation. Please try again.");
+        setStatusMessage(
+          "Failed to trigger report generation. Please try again.",
+        );
       }
     } finally {
       setGeneratingReport(false);
@@ -227,10 +256,13 @@ export default function JourneysView() {
       >
         <div className="border border-gold/20 rounded-xl bg-black-soft/60 p-8 text-center space-y-4">
           <AlertTriangle className="mx-auto text-gold" size={36} />
-          <h2 className="text-2xl font-semibold text-bone">Journeys Coming Soon</h2>
+          <h2 className="text-2xl font-semibold text-bone">
+            Journeys Coming Soon
+          </h2>
           <p className="text-bone-dim">
-            The Journeys feature isn&apos;t enabled yet for this environment. Once it&apos;s turned on, you&apos;ll
-            see your longitudinal reports here.
+            The Journeys feature isn&apos;t enabled yet for this environment.
+            Once it&apos;s turned on, you&apos;ll see your longitudinal reports
+            here.
           </p>
         </div>
       </motion.div>
@@ -251,7 +283,9 @@ export default function JourneysView() {
         <div className="border border-red-500/40 bg-red-500/10 text-red-100 rounded-lg p-6 space-y-3">
           <h2 className="text-xl font-semibold">Something went wrong</h2>
           <p>{error}</p>
-          <Button onClick={loadData} variant="secondary">Retry</Button>
+          <Button onClick={loadData} variant="secondary">
+            Retry
+          </Button>
         </div>
       </div>
     );
@@ -267,11 +301,13 @@ export default function JourneysView() {
         <div>
           <h1 className="text-3xl font-semibold text-bone">Journeys</h1>
           <p className="text-bone-dim">
-            Monitor how your conversations evolve over time and stay on top of the themes that matter.
+            Monitor how your conversations evolve over time and stay on top of
+            the themes that matter.
           </p>
           {preference && (
             <p className="text-sm text-gold mt-2">
-              Current cadence: <span className="font-semibold">{activeCadenceLabel}</span>
+              Current cadence:{" "}
+              <span className="font-semibold">{activeCadenceLabel}</span>
             </p>
           )}
         </div>
@@ -294,7 +330,11 @@ export default function JourneysView() {
             disabled={refreshingReports}
             className="border border-gold/20"
           >
-            {refreshingReports ? <Loader2 className="animate-spin" size={16} /> : <RefreshCcw size={16} />}
+            {refreshingReports ? (
+              <Loader2 className="animate-spin" size={16} />
+            ) : (
+              <RefreshCcw size={16} />
+            )}
             <span>Refresh</span>
           </Button>
         </div>
@@ -318,7 +358,10 @@ export default function JourneysView() {
               <select
                 value={formState.cadence}
                 onChange={(event) =>
-                  handlePreferenceChange("cadence", event.target.value as JourneyCadence)
+                  handlePreferenceChange(
+                    "cadence",
+                    event.target.value as JourneyCadence,
+                  )
                 }
                 className="bg-black-soft border border-gold/20 rounded-md px-3 py-2 text-bone focus:outline-none focus:border-gold"
               >
@@ -334,7 +377,9 @@ export default function JourneysView() {
               Timezone
               <select
                 value={formState.timezone}
-                onChange={(event) => handlePreferenceChange("timezone", event.target.value)}
+                onChange={(event) =>
+                  handlePreferenceChange("timezone", event.target.value)
+                }
                 className="bg-black-soft border border-gold/20 rounded-md px-3 py-2 text-bone focus:outline-none focus:border-gold"
               >
                 {TIMEZONE_OPTIONS.map((option) => (
@@ -349,7 +394,9 @@ export default function JourneysView() {
               <input
                 type="checkbox"
                 checked={formState.is_active}
-                onChange={(event) => handlePreferenceChange("is_active", event.target.checked)}
+                onChange={(event) =>
+                  handlePreferenceChange("is_active", event.target.checked)
+                }
                 className="h-4 w-4 accent-gold border border-gold/40 bg-black-soft"
               />
               Enable scheduled Journeys
@@ -358,7 +405,9 @@ export default function JourneysView() {
               <input
                 type="checkbox"
                 checked={formState.email_enabled}
-                onChange={(event) => handlePreferenceChange("email_enabled", event.target.checked)}
+                onChange={(event) =>
+                  handlePreferenceChange("email_enabled", event.target.checked)
+                }
                 className="h-4 w-4 accent-gold border border-gold/40 bg-black-soft"
               />
               Email me each Journey report
@@ -367,7 +416,11 @@ export default function JourneysView() {
 
           <div className="flex justify-end">
             <Button onClick={handleSavePreference} disabled={savingPreference}>
-              {savingPreference ? <Loader2 className="animate-spin" size={16} /> : <span>Save Changes</span>}
+              {savingPreference ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : (
+                <span>Save Changes</span>
+              )}
             </Button>
           </div>
         </section>
@@ -381,7 +434,8 @@ export default function JourneysView() {
 
         {reports.length === 0 ? (
           <div className="border border-gold/20 rounded-xl bg-black-soft/40 p-8 text-center text-bone-dim">
-            No reports yet. Generate your first Journey to see a high-level view of your conversations.
+            No reports yet. Generate your first Journey to see a high-level view
+            of your conversations.
           </div>
         ) : (
           <div className="space-y-4">
@@ -390,26 +444,37 @@ export default function JourneysView() {
               const metrics = (report.payload as any)?.metrics;
               const sessions: any[] = (report.payload as any)?.sessions ?? [];
               const todosSummary: any = (report.payload as any)?.todos ?? {};
-              const topTags: any[] = (report.payload as any)?.top_tags ?? metrics?.top_tags ?? [];
-              const summaryParagraphs = report.summary ? report.summary.split(/\n+/).filter(Boolean) : [];
+              const topTags: any[] =
+                (report.payload as any)?.top_tags ?? metrics?.top_tags ?? [];
+              const summaryParagraphs = report.summary
+                ? report.summary.split(/\n+/).filter(Boolean)
+                : [];
               const periodTimezone: string = metrics?.period?.timezone ?? "UTC";
               return (
                 <div
                   key={report.id}
                   className={cn(
                     "border border-gold/15 rounded-xl bg-black-soft/30",
-                    "p-5 hover:border-gold/40 transition-colors"
+                    "p-5 hover:border-gold/40 transition-colors",
                   )}
                 >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
                       <h3 className="text-lg font-semibold text-bone capitalize">
                         {report.cadence} Journey •{" "}
-                        {formatPeriod(report.period_start, report.period_end, periodTimezone)}
+                        {formatPeriod(
+                          report.period_start,
+                          report.period_end,
+                          periodTimezone,
+                        )}
                       </h3>
                       <p className="text-sm text-bone-dim">
                         Generated at{" "}
-                        {formatDate(report.generated_at ?? report.updated_at, periodTimezone, true)}
+                        {formatDate(
+                          report.generated_at ?? report.updated_at,
+                          periodTimezone,
+                          true,
+                        )}
                       </p>
                     </div>
                     <StatusBadge status={status.badge} label={status.label} />
@@ -442,15 +507,22 @@ export default function JourneysView() {
                     <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       <div className="rounded-lg border border-gold/15 bg-black-soft/50 p-4">
                         <p className="text-sm text-bone-dim">Sessions</p>
-                        <p className="text-2xl font-semibold text-bone">{metrics.sessions?.total ?? "—"}</p>
+                        <p className="text-2xl font-semibold text-bone">
+                          {metrics.sessions?.total ?? "—"}
+                        </p>
                         <p className="text-xs text-bone-dim mt-1">
-                          {metrics.sessions?.completed ?? 0} completed • {metrics.sessions?.average_minutes ?? 0} avg min
+                          {metrics.sessions?.completed ?? 0} completed •{" "}
+                          {metrics.sessions?.average_minutes ?? 0} avg min
                         </p>
                       </div>
                       <div className="rounded-lg border border-gold/15 bg-black-soft/50 p-4">
                         <p className="text-sm text-bone-dim">Listening Time</p>
-                        <p className="text-2xl font-semibold text-bone">{metrics.sessions?.total_minutes ?? 0}</p>
-                        <p className="text-xs text-bone-dim mt-1">Total minutes processed</p>
+                        <p className="text-2xl font-semibold text-bone">
+                          {metrics.sessions?.total_minutes ?? 0}
+                        </p>
+                        <p className="text-xs text-bone-dim mt-1">
+                          Total minutes processed
+                        </p>
                       </div>
                       <div className="rounded-lg border border-gold/15 bg-black-soft/50 p-4">
                         <p className="text-sm text-bone-dim">Tasks</p>
@@ -458,7 +530,10 @@ export default function JourneysView() {
                           {todosSummary.created ?? metrics.todos?.created ?? 0}
                         </p>
                         <p className="text-xs text-bone-dim mt-1">
-                          {todosSummary.completed ?? metrics.todos?.completed ?? 0} completed
+                          {todosSummary.completed ??
+                            metrics.todos?.completed ??
+                            0}{" "}
+                          completed
                         </p>
                       </div>
                     </div>
@@ -479,16 +554,29 @@ export default function JourneysView() {
 
                   {sessions.length > 0 && (
                     <div className="mt-6 space-y-3">
-                      <p className="text-sm font-semibold text-bone">Session Highlights</p>
+                      <p className="text-sm font-semibold text-bone">
+                        Session Highlights
+                      </p>
                       <ul className="space-y-2 text-sm text-bone-dim">
                         {sessions.slice(0, 4).map((session) => (
-                          <li key={session.id} className="border border-gold/10 rounded-lg p-3 bg-black-soft/40">
-                            <p className="text-bone font-medium">Session {session.id}</p>
-                            {session.summary && <p className="mt-1 text-xs leading-relaxed">{session.summary}</p>}
+                          <li
+                            key={session.id}
+                            className="border border-gold/10 rounded-lg p-3 bg-black-soft/40"
+                          >
+                            <p className="text-bone font-medium">
+                              Session {session.id}
+                            </p>
+                            {session.summary && (
+                              <p className="mt-1 text-xs leading-relaxed">
+                                {session.summary}
+                              </p>
+                            )}
                             <div className="mt-2 flex gap-3 text-xs">
                               <span>{session.todo_count ?? 0} tasks</span>
                               <span>{session.duration_minutes ?? 0} min</span>
-                              <span className="capitalize">{session.status}</span>
+                              <span className="capitalize">
+                                {session.status}
+                              </span>
                             </div>
                           </li>
                         ))}
@@ -496,19 +584,29 @@ export default function JourneysView() {
                     </div>
                   )}
 
-                  {Array.isArray(todosSummary.highlights) && todosSummary.highlights.length > 0 && (
-                    <div className="mt-6 space-y-2">
-                      <p className="text-sm font-semibold text-bone">Task Highlights</p>
-                      <ul className="space-y-2 text-sm text-bone-dim">
-                        {todosSummary.highlights.slice(0, 4).map((todo: any, idx: number) => (
-                          <li key={`${todo.title}-${idx}`} className="border border-gold/10 rounded-lg p-3 bg-black-soft/30">
-                            <p className="text-bone">{todo.title}</p>
-                            <p className="text-xs capitalize mt-1">Status: {todo.status ?? "unknown"}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {Array.isArray(todosSummary.highlights) &&
+                    todosSummary.highlights.length > 0 && (
+                      <div className="mt-6 space-y-2">
+                        <p className="text-sm font-semibold text-bone">
+                          Task Highlights
+                        </p>
+                        <ul className="space-y-2 text-sm text-bone-dim">
+                          {todosSummary.highlights
+                            .slice(0, 4)
+                            .map((todo: any, idx: number) => (
+                              <li
+                                key={`${todo.title}-${idx}`}
+                                className="border border-gold/10 rounded-lg p-3 bg-black-soft/30"
+                              >
+                                <p className="text-bone">{todo.title}</p>
+                                <p className="text-xs capitalize mt-1">
+                                  Status: {todo.status ?? "unknown"}
+                                </p>
+                              </li>
+                            ))}
+                        </ul>
+                      </div>
+                    )}
 
                   <div className="mt-4 text-xs text-bone-dim">
                     <div>
@@ -520,7 +618,8 @@ export default function JourneysView() {
                       {formatDate(report.period_end, periodTimezone, false)}
                     </div>
                     <div>
-                      <span className="font-semibold text-bone">Timezone:</span> {periodTimezone}
+                      <span className="font-semibold text-bone">Timezone:</span>{" "}
+                      {periodTimezone}
                     </div>
                   </div>
                 </div>

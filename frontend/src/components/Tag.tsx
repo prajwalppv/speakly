@@ -1,17 +1,23 @@
-import { motion } from 'framer-motion';
-import { X, Sparkles } from 'lucide-react';
-import { TagRecord } from '../api';
-import { cn } from '@/lib/utils';
+import { motion } from "framer-motion";
+import { X, Sparkles } from "lucide-react";
+import { TagRecord } from "../api";
+import { cn } from "@/lib/utils";
 
 interface TagProps {
   tag: TagRecord;
   onRemove?: () => void;
   onClick?: (e: React.MouseEvent) => void;
   isSelected?: boolean;
-  size?: 'small' | 'medium';
+  size?: "small" | "medium";
 }
 
-export default function Tag({ tag, onRemove, onClick, isSelected = false, size = 'small' }: TagProps) {
+export default function Tag({
+  tag,
+  onRemove,
+  onClick,
+  isSelected = false,
+  size = "small",
+}: TagProps) {
   return (
     <motion.span
       initial={{ opacity: 0, scale: 0.9 }}
@@ -19,16 +25,16 @@ export default function Tag({ tag, onRemove, onClick, isSelected = false, size =
       exit={{ opacity: 0, scale: 0.9 }}
       whileHover={onClick ? { scale: 1.05 } : {}}
       className={cn(
-        'inline-flex items-center gap-1.5 px-2 py-1 rounded-full font-medium border-2 transition-all',
-        size === 'small' ? 'text-xs' : 'text-sm',
-        onClick && 'cursor-pointer hover:brightness-110',
-        isSelected && 'ring-2 ring-offset-2 ring-offset-black'
+        "inline-flex items-center gap-1.5 px-2 py-1 rounded-full font-medium border-2 transition-all",
+        size === "small" ? "text-xs" : "text-sm",
+        onClick && "cursor-pointer hover:brightness-110",
+        isSelected && "ring-2 ring-offset-2 ring-offset-black",
       )}
-      style={{ 
+      style={{
         backgroundColor: isSelected ? `${tag.color}40` : `${tag.color}20`,
         borderColor: isSelected ? tag.color : `${tag.color}80`,
         color: tag.color,
-        ...(isSelected && { ringColor: tag.color })
+        ...(isSelected && { ringColor: tag.color }),
       }}
       onClick={onClick}
     >

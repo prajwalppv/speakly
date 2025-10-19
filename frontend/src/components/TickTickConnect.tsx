@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Circle, Link2, Calendar, Shield, Loader2, AlertCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  Circle,
+  Link2,
+  Calendar,
+  Shield,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 import {
   getTickTickStatus,
   connectTickTick,
@@ -30,11 +38,11 @@ export default function TickTickConnect() {
 
   useEffect(() => {
     loadStatus();
-    
+
     // Check for OAuth callback parameters
     const params = new URLSearchParams(window.location.search);
     const ticktickStatus = params.get("ticktick");
-    
+
     if (ticktickStatus === "connected") {
       // Clear URL parameters
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -161,7 +169,7 @@ export default function TickTickConnect() {
               "w-full px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2",
               disconnecting
                 ? "bg-black-soft text-bone-dim cursor-not-allowed"
-                : "border-2 border-red-500/30 text-red-500 hover:bg-red-500/10"
+                : "border-2 border-red-500/30 text-red-500 hover:bg-red-500/10",
             )}
             onClick={handleDisconnect}
             disabled={disconnecting}
@@ -195,7 +203,9 @@ export default function TickTickConnect() {
           </div>
 
           <div className="space-y-3 bg-gold/10 border border-gold/30 rounded-lg p-4">
-            <h4 className="text-sm font-display font-semibold text-gold">Benefits:</h4>
+            <h4 className="text-sm font-display font-semibold text-gold">
+              Benefits:
+            </h4>
             <ul className="space-y-2 text-sm text-bone-dim">
               <li className="flex items-start gap-2">
                 <span className="text-gold mt-0.5">•</span>

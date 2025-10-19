@@ -203,7 +203,7 @@ TICKTICK_ENABLED=true  # Must be true
 
 ### **Extracted TODOs:**
 1. Schedule Q4 planning meeting
-2. Send out agenda by Wednesday  
+2. Send out agenda by Wednesday
 3. Follow up with client about proposal
 
 ### **TickTick Result:**
@@ -219,11 +219,11 @@ TICKTICK_ENABLED=true  # Must be true
 
 ## 🎉 Benefits
 
-✅ **Automatic** - No manual copying of TODOs  
-✅ **Organized** - Dedicated "Speakly" project keeps things tidy  
-✅ **Context-Rich** - Tasks include source excerpts  
-✅ **Reliable** - Tracks sync status and handles errors  
-✅ **Non-Intrusive** - Separate project doesn't affect existing work  
+✅ **Automatic** - No manual copying of TODOs
+✅ **Organized** - Dedicated "Speakly" project keeps things tidy
+✅ **Context-Rich** - Tasks include source excerpts
+✅ **Reliable** - Tracks sync status and handles errors
+✅ **Non-Intrusive** - Separate project doesn't affect existing work
 
 ---
 

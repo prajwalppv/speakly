@@ -1,0 +1,79 @@
+minimum_pre_commit_version: "3.6.0"
+default_stages: [commit, push]
+default_language_version:
+  python: python3
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.0
+    hooks:
+      - id: pyupgrade
+        name: Enforce modern Python syntax (pyupgrade)
+        args: ["--py311-plus"]
+        files: ^backend/.*\.py$
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        name: Black format (backend)
+        files: ^backend/.*\.py$
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort import sort (backend)
+        files: ^backend/.*\.py$
+        args: ["--profile=black"]
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        name: Mypy type check (backend)
+        files: ^backend/app/(config|schemas)\.py$
+        args:
+          - --config-file=backend/pyproject.toml
+        additional_dependencies:
+          - pydantic
+          - fastapi
+          - sqlalchemy
+          - httpx
+          - uvicorn[standard]
+          - tenacity
+          - clerk-backend-api
+          - psycopg2-binary
+          - groq
+          - pydantic-settings
+          - types-requests
+          - types-python-jose
+  - repo: local
+    hooks:
+      - id: frontend-prettier
+        name: Prettier format (frontend)
+        entry: env npm_config_rm=false npx --yes --package prettier@3.4.2 --package prettier-plugin-tailwindcss@0.6.8 prettier --write
+        language: system
+        pass_filenames: true
+        files: ^frontend/.*\.(ts|tsx|js|jsx|json|css|md|html|cjs|mjs|yaml|yml)$
+      - id: frontend-typecheck
+        name: Frontend TypeScript typecheck
+        entry: npm run --prefix frontend typecheck
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$
+        stages: [commit]
+      - id: backend-pytest
+        name: Backend pytest
+        entry: bash -c "cd backend && uv run pytest"
+        language: system
+        pass_filenames: false
+        stages: [commit]

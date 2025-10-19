@@ -94,7 +94,7 @@ integrations/
 ```python
 class TaskSyncService:
     """Works with ANY TaskSyncIntegration"""
-    
+
     async def sync_todo(self, todo, db):
         # Syncs to ALL connected integrations
         # Handles errors gracefully
@@ -127,7 +127,7 @@ class NotionIntegration(TaskSyncIntegration[Todo]):
     @property
     def name(self) -> str:
         return "notion"
-    
+
     async def sync_task(self, todo, user_id, db):
         # Your Notion logic
         pass
@@ -274,10 +274,10 @@ With this architecture, you can now easily add:
 
 ## 🎉 Final Result
 
-**Before:** Monolithic, tightly coupled, hard to extend  
+**Before:** Monolithic, tightly coupled, hard to extend
 **After:** Modular, loosely coupled, infinitely extensible
 
-**Frontend:** Basic layout → Professional, production-ready UI  
+**Frontend:** Basic layout → Professional, production-ready UI
 **Backend:** Spaghetti code → Clean, SOLID architecture
 
 ---

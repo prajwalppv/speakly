@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
-from ..database import get_session
 from ..config import settings
+from ..database import get_session
 from ..models import User
 from ..services.ticktick import (
     TickTickAuthError,
@@ -31,7 +30,7 @@ def _build_state(user_id: int, state: str | None) -> str:
 
 @router.get("/connect")
 async def connect_ticktick(
-    state: Optional[str] = Query(default=None, description="CSRF state parameter"),
+    state: str | None = Query(default=None, description="CSRF state parameter"),
     current_user: User = Depends(get_current_user),
 ):
     """Initiate TickTick OAuth flow with a HTTP redirect."""
@@ -44,15 +43,17 @@ async def connect_ticktick(
     except TickTickNotConfiguredError as e:
         logger.warning(f"TickTick not configured: {str(e)}")
         raise HTTPException(status_code=503, detail=str(e))
-    
+
     except Exception as e:
         logger.exception("Unexpected error generating TickTick authorization URL")
-        raise HTTPException(status_code=500, detail=f"Failed to generate authorization URL: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate authorization URL: {str(e)}"
+        )
 
 
 @router.get("/connect/url")
 async def connect_ticktick_url(
-    state: Optional[str] = Query(default=None, description="CSRF state parameter"),
+    state: str | None = Query(default=None, description="CSRF state parameter"),
     current_user: User = Depends(get_current_user),
 ):
     """Return the TickTick OAuth authorization URL (no redirect)."""
@@ -65,16 +66,18 @@ async def connect_ticktick_url(
     except TickTickNotConfiguredError as e:
         logger.warning(f"TickTick not configured: {str(e)}")
         raise HTTPException(status_code=503, detail=str(e))
-    
+
     except Exception as e:
         logger.exception("Unexpected error generating TickTick authorization URL")
-        raise HTTPException(status_code=500, detail=f"Failed to generate authorization URL: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate authorization URL: {str(e)}"
+        )
 
 
 @router.get("/callback")
 async def ticktick_callback(
     code: str = Query(..., description="Authorization code from TickTick"),
-    state: Optional[str] = Query(default=None, description="State parameter"),
+    state: str | None = Query(default=None, description="State parameter"),
     db: Session = Depends(get_session),
 ):
     """
@@ -106,22 +109,31 @@ async def ticktick_callback(
 
         # Redirect to frontend with success message
         frontend_url = settings.frontend_base_url.rstrip("/")
-        return RedirectResponse(url=f"{frontend_url}/?ticktick=connected", status_code=302)
+        return RedirectResponse(
+            url=f"{frontend_url}/?ticktick=connected", status_code=302
+        )
 
     except TickTickAuthError as e:
         logger.error(f"TickTick auth error: {str(e)}")
         # Redirect to frontend with error
         frontend_url = settings.frontend_base_url.rstrip("/")
-        return RedirectResponse(url=f"{frontend_url}/?ticktick=error&message={str(e)}", status_code=302)
+        return RedirectResponse(
+            url=f"{frontend_url}/?ticktick=error&message={str(e)}", status_code=302
+        )
 
     except TickTickNotConfiguredError as e:
         frontend_url = settings.frontend_base_url.rstrip("/")
-        return RedirectResponse(url=f"{frontend_url}/?ticktick=error&message={str(e)}", status_code=302)
+        return RedirectResponse(
+            url=f"{frontend_url}/?ticktick=error&message={str(e)}", status_code=302
+        )
 
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error during TickTick callback")
         frontend_url = settings.frontend_base_url.rstrip("/")
-        return RedirectResponse(url=f"{frontend_url}/?ticktick=error&message=Connection failed", status_code=302)
+        return RedirectResponse(
+            url=f"{frontend_url}/?ticktick=error&message=Connection failed",
+            status_code=302,
+        )
 
 
 @router.get("/status")
@@ -174,7 +186,7 @@ async def get_projects(
     except (TickTickNotConfiguredError, TickTickAuthError) as e:
         raise HTTPException(status_code=401, detail=str(e))
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error fetching TickTick projects")
         raise HTTPException(status_code=500, detail="Failed to fetch projects")
 

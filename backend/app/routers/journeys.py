@@ -21,7 +21,6 @@ from ..services import (
     JourneyReportService,
     calculate_period_bounds,
     get_journey_service,
-    ReportStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,7 +95,11 @@ def list_journey_reports(
     return ReportListResponse(reports=reports, total=total)
 
 
-@router.post("/reports/generate", response_model=ReportResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/reports/generate",
+    response_model=ReportResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def trigger_journey_report_generation(
     payload: ReportGenerateRequest,
     current_user: User = Depends(get_current_user),
@@ -125,10 +128,15 @@ def trigger_journey_report_generation(
     if payload.period_start and payload.period_end:
         period_start, period_end = payload.period_start, payload.period_end
     else:
-        period_start, period_end = calculate_period_bounds(end_reference, cadence_enum, tz_name)
+        period_start, period_end = calculate_period_bounds(
+            end_reference, cadence_enum, tz_name
+        )
 
     if period_start >= period_end:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid period range")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid period range",
+        )
 
     report = service.create_report_placeholder(
         user_id=current_user.id,
@@ -156,10 +164,16 @@ def trigger_journey_report_generation(
         report = service.generate_report(report)
         db.commit()
     except Exception as exc:  # pragma: no cover - unexpected errors logged
-        logger.exception("Failed to generate journey report", extra={"report_id": report.id})
-        service.mark_report_progress(report=report, status=ReportStatus.FAILED, summary=str(exc))
+        logger.exception(
+            "Failed to generate journey report", extra={"report_id": report.id}
+        )
+        service.mark_report_progress(
+            report=report, status=ReportStatus.FAILED, summary=str(exc)
+        )
         db.commit()
-        raise HTTPException(status_code=500, detail="Failed to generate report") from exc
+        raise HTTPException(
+            status_code=500, detail="Failed to generate report"
+        ) from exc
 
     db.refresh(report)
     return report
@@ -172,7 +186,11 @@ def delete_journey_report(
     db: Session = Depends(get_session),
 ) -> None:
     _ensure_feature_enabled()
-    report = db.query(Report).filter(Report.id == report_id, Report.user_id == current_user.id).one_or_none()
+    report = (
+        db.query(Report)
+        .filter(Report.id == report_id, Report.user_id == current_user.id)
+        .one_or_none()
+    )
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     db.delete(report)

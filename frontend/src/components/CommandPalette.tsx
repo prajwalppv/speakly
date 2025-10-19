@@ -1,8 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Upload, FileText, Settings, Hash, ArrowRight } from 'lucide-react';
-import { SessionRecord } from '../api';
-import { cn } from '@/lib/utils';
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search,
+  Upload,
+  FileText,
+  Settings,
+  Hash,
+  ArrowRight,
+} from "lucide-react";
+import { SessionRecord } from "../api";
+import { cn } from "@/lib/utils";
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -31,38 +38,41 @@ export default function CommandPalette({
   onOpenSettings,
   onSearch,
 }: CommandPaletteProps) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Static commands
   const staticCommands: Command[] = [
     {
-      id: 'upload',
-      label: 'Upload audio file',
+      id: "upload",
+      label: "Upload audio file",
       icon: <Upload size={18} />,
       action: () => {
         onUpload();
         onClose();
       },
-      keywords: ['upload', 'add', 'new', 'file', 'audio'],
+      keywords: ["upload", "add", "new", "file", "audio"],
     },
     {
-      id: 'settings',
-      label: 'Open settings',
+      id: "settings",
+      label: "Open settings",
       icon: <Settings size={18} />,
       action: () => {
         onOpenSettings();
         onClose();
       },
-      keywords: ['settings', 'config', 'preferences'],
+      keywords: ["settings", "config", "preferences"],
     },
   ];
 
   // Generate commands from sessions
   const sessionCommands: Command[] = sessions.slice(0, 10).map((session) => ({
     id: `session-${session.id}`,
-    label: session.description || session.transcriptions[0]?.text?.substring(0, 60) || `Recording #${session.id}`,
+    label:
+      session.description ||
+      session.transcriptions[0]?.text?.substring(0, 60) ||
+      `Recording #${session.id}`,
     icon: <FileText size={18} />,
     action: () => {
       onNavigateToSession(session.id);
@@ -70,36 +80,42 @@ export default function CommandPalette({
     },
     keywords: [
       `#${session.id}`,
-      session.description || '',
-      session.transcriptions[0]?.text || '',
+      session.description || "",
+      session.transcriptions[0]?.text || "",
     ],
   }));
 
   // Filter commands based on query
-  const filteredCommands = [...staticCommands, ...sessionCommands].filter((cmd) => {
-    if (!query.trim()) return true;
-    
-    const searchQuery = query.toLowerCase();
-    const labelMatch = cmd.label.toLowerCase().includes(searchQuery);
-    const keywordMatch = cmd.keywords?.some(k => k.toLowerCase().includes(searchQuery));
-    
-    return labelMatch || keywordMatch;
-  });
+  const filteredCommands = [...staticCommands, ...sessionCommands].filter(
+    (cmd) => {
+      if (!query.trim()) return true;
+
+      const searchQuery = query.toLowerCase();
+      const labelMatch = cmd.label.toLowerCase().includes(searchQuery);
+      const keywordMatch = cmd.keywords?.some((k) =>
+        k.toLowerCase().includes(searchQuery),
+      );
+
+      return labelMatch || keywordMatch;
+    },
+  );
 
   // Handle keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         onClose();
-      } else if (e.key === 'ArrowDown') {
+      } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((prev) => Math.min(prev + 1, filteredCommands.length - 1));
-      } else if (e.key === 'ArrowUp') {
+        setSelectedIndex((prev) =>
+          Math.min(prev + 1, filteredCommands.length - 1),
+        );
+      } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setSelectedIndex((prev) => Math.max(prev - 1, 0));
-      } else if (e.key === 'Enter') {
+      } else if (e.key === "Enter") {
         e.preventDefault();
         if (filteredCommands[selectedIndex]) {
           filteredCommands[selectedIndex].action();
@@ -111,14 +127,14 @@ export default function CommandPalette({
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, selectedIndex, filteredCommands, query, onClose, onSearch]);
 
   // Reset when opened
   useEffect(() => {
     if (isOpen) {
-      setQuery('');
+      setQuery("");
       setSelectedIndex(0);
       setTimeout(() => inputRef.current?.focus(), 10);
     }
@@ -161,7 +177,9 @@ export default function CommandPalette({
                 onChange={(e) => setQuery(e.target.value)}
                 className="flex-1 bg-transparent text-bone placeholder:text-bone-dim focus:outline-none"
               />
-              <kbd className="px-2 py-1 bg-black/50 border border-bone-dim/30 rounded text-xs text-bone-dim font-mono">ESC</kbd>
+              <kbd className="px-2 py-1 bg-black/50 border border-bone-dim/30 rounded text-xs text-bone-dim font-mono">
+                ESC
+              </kbd>
             </div>
 
             {/* Command List */}
@@ -176,21 +194,29 @@ export default function CommandPalette({
                       "w-full flex items-center justify-between p-4 text-left transition-colors group",
                       index === selectedIndex
                         ? "bg-gold/20 border-l-2 border-gold"
-                        : "hover:bg-white/5"
+                        : "hover:bg-white/5",
                     )}
                     whileHover={{ x: 4 }}
                   >
                     <div className="flex items-center gap-3">
-                      <span className={cn(
-                        "transition-colors",
-                        index === selectedIndex ? "text-gold" : "text-bone-dim"
-                      )}>
+                      <span
+                        className={cn(
+                          "transition-colors",
+                          index === selectedIndex
+                            ? "text-gold"
+                            : "text-bone-dim",
+                        )}
+                      >
                         {cmd.icon}
                       </span>
-                      <span className={cn(
-                        "text-sm font-medium transition-colors",
-                        index === selectedIndex ? "text-bone" : "text-bone-dim"
-                      )}>
+                      <span
+                        className={cn(
+                          "text-sm font-medium transition-colors",
+                          index === selectedIndex
+                            ? "text-bone"
+                            : "text-bone-dim",
+                        )}
+                      >
                         {cmd.label}
                       </span>
                     </div>
@@ -198,7 +224,9 @@ export default function CommandPalette({
                       size={16}
                       className={cn(
                         "transition-all",
-                        index === selectedIndex ? "text-gold opacity-100" : "text-bone-dim opacity-0 group-hover:opacity-100"
+                        index === selectedIndex
+                          ? "text-gold opacity-100"
+                          : "text-bone-dim opacity-0 group-hover:opacity-100",
                       )}
                     />
                   </motion.button>
@@ -226,16 +254,24 @@ export default function CommandPalette({
             {/* Footer */}
             <div className="flex items-center justify-center gap-6 p-3 border-t border-bone-dim/20 bg-black/30">
               <div className="flex items-center gap-1.5 text-xs text-bone-dim">
-                <kbd className="px-1.5 py-0.5 bg-black border border-bone-dim/30 rounded font-mono">↑</kbd>
-                <kbd className="px-1.5 py-0.5 bg-black border border-bone-dim/30 rounded font-mono">↓</kbd>
+                <kbd className="px-1.5 py-0.5 bg-black border border-bone-dim/30 rounded font-mono">
+                  ↑
+                </kbd>
+                <kbd className="px-1.5 py-0.5 bg-black border border-bone-dim/30 rounded font-mono">
+                  ↓
+                </kbd>
                 <span>Navigate</span>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-bone-dim">
-                <kbd className="px-1.5 py-0.5 bg-black border border-bone-dim/30 rounded font-mono">↵</kbd>
+                <kbd className="px-1.5 py-0.5 bg-black border border-bone-dim/30 rounded font-mono">
+                  ↵
+                </kbd>
                 <span>Select</span>
               </div>
               <div className="flex items-center gap-1.5 text-xs text-bone-dim">
-                <kbd className="px-1.5 py-0.5 bg-black border border-bone-dim/30 rounded font-mono">ESC</kbd>
+                <kbd className="px-1.5 py-0.5 bg-black border border-bone-dim/30 rounded font-mono">
+                  ESC
+                </kbd>
                 <span>Close</span>
               </div>
             </div>

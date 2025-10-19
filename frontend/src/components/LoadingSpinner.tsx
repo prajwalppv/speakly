@@ -1,19 +1,19 @@
-import { motion } from 'framer-motion';
-import Logo from './Logo';
+import { motion } from "framer-motion";
+import Logo from "./Logo";
 
 interface LoadingSpinnerProps {
   message?: string;
-  size?: 'small' | 'medium' | 'large';
+  size?: "small" | "medium" | "large";
 }
 
-export default function LoadingSpinner({ 
-  message = 'Loading...', 
-  size = 'medium' 
+export default function LoadingSpinner({
+  message = "Loading...",
+  size = "medium",
 }: LoadingSpinnerProps) {
   const sizeClasses = {
-    small: 'w-8 h-8',
-    medium: 'w-16 h-16',
-    large: 'w-24 h-24'
+    small: "w-8 h-8",
+    medium: "w-16 h-16",
+    large: "w-24 h-24",
   };
 
   return (
@@ -27,25 +27,29 @@ export default function LoadingSpinner({
         transition={{
           duration: 2,
           repeat: Infinity,
-          ease: "easeInOut"
+          ease: "easeInOut",
         }}
       >
-        <Logo size={size === 'small' ? 'small' : size === 'large' ? 'large' : 'medium'} />
+        <Logo
+          size={
+            size === "small" ? "small" : size === "large" ? "large" : "medium"
+          }
+        />
       </motion.div>
 
       {/* Spinning Ring */}
       <div className="relative">
         <motion.div
           className={`${sizeClasses[size]} rounded-full border-4 border-gold/20`}
-          style={{ borderTopColor: '#d4af37' }}
+          style={{ borderTopColor: "#d4af37" }}
           animate={{ rotate: 360 }}
           transition={{
             duration: 1,
             repeat: Infinity,
-            ease: "linear"
+            ease: "linear",
           }}
         />
-        
+
         {/* Inner pulsing dot */}
         <motion.div
           className="absolute top-1/2 left-1/2 w-2 h-2 bg-gold rounded-full -translate-x-1/2 -translate-y-1/2"
@@ -56,7 +60,7 @@ export default function LoadingSpinner({
           transition={{
             duration: 1.5,
             repeat: Infinity,
-            ease: "easeInOut"
+            ease: "easeInOut",
           }}
         />
       </div>
@@ -71,7 +75,7 @@ export default function LoadingSpinner({
           transition={{
             duration: 2,
             repeat: Infinity,
-            ease: "easeInOut"
+            ease: "easeInOut",
           }}
         >
           {message}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, Sequence
 
 from sqlalchemy.orm import Session
 
@@ -113,7 +113,10 @@ def match_profile_for_segment(
     for profile in profiles:
         if profile.external_id and profile.external_id.lower() == segment_label:
             return profile, profile.name.lower() == settings.pj_profile_name.lower()
-        if segment_label in settings.pj_voice_tag_set and profile.name.lower() == settings.pj_profile_name.lower():
+        if (
+            segment_label in settings.pj_voice_tag_set
+            and profile.name.lower() == settings.pj_profile_name.lower()
+        ):
             return profile, True
     return None, False
 

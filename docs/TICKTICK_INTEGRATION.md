@@ -188,7 +188,7 @@ async def sync_todo_to_ticktick(todo: TODO, session: Session):
     Automatically creates TickTick task when TODO is detected
     """
     ticktick = TickTickClient(user_id=session.user_id)
-    
+
     task = await ticktick.create_task(
         title=todo.title,
         content=f"From Speakly session #{session.id}\n\n{todo.source_excerpt}",
@@ -196,7 +196,7 @@ async def sync_todo_to_ticktick(todo: TODO, session: Session):
         tags=["speakly"],
         project_id=get_user_default_project()
     )
-    
+
     # Store task_id in database for future reference
     todo.ticktick_task_id = task.id
 ```
@@ -218,7 +218,7 @@ async def sync_todo_to_ticktick(todo: TODO, session: Session):
 ```python
 class TickTickToken(Base):
     __tablename__ = "ticktick_tokens"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True)
     access_token = Column(String, nullable=False)
@@ -227,7 +227,7 @@ class TickTickToken(Base):
     scope = Column(String, default="tasks:write tasks:read")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationship
     user = relationship("User", back_populates="ticktick_token")
 ```
@@ -237,7 +237,7 @@ class TickTickToken(Base):
 ```python
 class TODO(Base):
     # ... existing fields ...
-    
+
     # Add TickTick sync tracking
     ticktick_task_id = Column(String, nullable=True, unique=True)
     ticktick_synced_at = Column(DateTime, nullable=True)
@@ -286,7 +286,7 @@ async def test_create_task():
         "content": "This is a test task",
         "tags": ["speakly", "test"]
     }
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.post(
             "https://api.ticktick.com/open/v1/task",

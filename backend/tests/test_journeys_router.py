@@ -9,10 +9,10 @@ from app.models import (
     ReportPreference,
     ReportStatus,
     Session,
-    Transcription,
-    Todo,
-    Tag,
     SessionTag,
+    Tag,
+    Todo,
+    Transcription,
     User,
 )
 from app.services import JourneyReportService, calculate_period_bounds
@@ -163,7 +163,9 @@ def _seed_journey_data(test_db):
 
 
 def test_generate_report_updates_schedule(journeys_client, test_db, monkeypatch):
-    monkeypatch.setattr("app.services.journeys.send_journey_report_email", lambda report, payload: None)
+    monkeypatch.setattr(
+        "app.services.journeys.send_journey_report_email", lambda report, payload: None
+    )
     journeys_client.get("/api/journeys/preferences")
     _seed_journey_data(test_db)
 
@@ -171,7 +173,9 @@ def test_generate_report_updates_schedule(journeys_client, test_db, monkeypatch)
     pref = service.get_preference(user_id=1)
     assert pref is not None
 
-    period_start, period_end = calculate_period_bounds(datetime.utcnow(), ReportCadence.WEEKLY)
+    period_start, period_end = calculate_period_bounds(
+        datetime.utcnow(), ReportCadence.WEEKLY
+    )
     report = service.create_report_placeholder(
         user_id=1,
         cadence=ReportCadence.WEEKLY,
@@ -185,7 +189,9 @@ def test_generate_report_updates_schedule(journeys_client, test_db, monkeypatch)
     assert pref.next_scheduled_at is not None
 
 
-def test_trigger_report_generation_populates_report(journeys_client, test_db, monkeypatch):
+def test_trigger_report_generation_populates_report(
+    journeys_client, test_db, monkeypatch
+):
     email_called: dict[str, bool] = {"value": False}
 
     def fake_send(report, payload):

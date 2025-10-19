@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import calendar
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-from typing import Iterable, Sequence
-import calendar
 
 from sqlalchemy.orm import Session
 
 from ..models import Report, ReportCadence, ReportPreference, ReportStatus
+from .email_sender import send_journey_report_email
 from .journey_builder import JourneyReportBuilder
 from .journey_summary import JourneySummaryGenerator
-from .email_sender import send_journey_report_email
 
 
 def _add_months(base: datetime, months: int) -> datetime:
@@ -66,17 +66,29 @@ def calculate_period_bounds(
     if cadence is ReportCadence.DAILY:
         start_local = local_end.replace(hour=0, minute=0, second=0, microsecond=0)
     elif cadence is ReportCadence.WEEKLY:
-        start_local = (local_end - timedelta(weeks=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_local = (local_end - timedelta(weeks=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
     elif cadence is ReportCadence.BIWEEKLY:
-        start_local = (local_end - timedelta(weeks=2)).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_local = (local_end - timedelta(weeks=2)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
     elif cadence is ReportCadence.MONTHLY:
-        start_local = _add_months(local_end, -1).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_local = _add_months(local_end, -1).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
     elif cadence is ReportCadence.QUARTERLY:
-        start_local = _add_months(local_end, -3).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_local = _add_months(local_end, -3).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
     elif cadence is ReportCadence.YEARLY:
-        start_local = _add_months(local_end, -12).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_local = _add_months(local_end, -12).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
     else:
-        start_local = (local_end - timedelta(weeks=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_local = (local_end - timedelta(weeks=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
     start_utc = start_local.astimezone(UTC).replace(tzinfo=None)
     end_utc = local_end.astimezone(UTC).replace(tzinfo=None)
@@ -146,10 +158,7 @@ class JourneyReportService:
             query = query.filter(Report.cadence.in_([c.value for c in cadences]))
 
         return (
-            query.order_by(Report.period_start.desc())
-            .offset(offset)
-            .limit(limit)
-            .all()
+            query.order_by(Report.period_start.desc()).offset(offset).limit(limit).all()
         )
 
     def count_reports(
@@ -233,14 +242,19 @@ class JourneyReportService:
             self.db.query(ReportPreference)
             .filter(ReportPreference.is_active.is_(True))
             .filter(
-                (ReportPreference.next_scheduled_at == None)
+                (ReportPreference.next_scheduled_at.is_(None))
                 | (ReportPreference.next_scheduled_at <= now)
             )
             .all()
         )
 
     def has_report_for_period(
-        self, *, user_id: int, cadence: ReportCadence, period_start: datetime, period_end: datetime
+        self,
+        *,
+        user_id: int,
+        cadence: ReportCadence,
+        period_start: datetime,
+        period_end: datetime,
     ) -> bool:
         return (
             self.db.query(Report)

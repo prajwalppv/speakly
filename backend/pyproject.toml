@@ -1,0 +1,64 @@
+[project]
+name = "speakly-backend"
+version = "0.1.0"
+description = "Privacy-first voice transcription backend for Speakly."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Speakly Team" }]
+dependencies = [
+    "fastapi==0.115.12",
+    "uvicorn[standard]==0.34.0",
+    "sqlalchemy==2.0.36",
+    "alembic==1.14.0",
+    "pydantic==2.10.6",
+    "pydantic-settings==2.7.1",
+    "httpx==0.28.1",
+    "python-multipart==0.0.20",
+    "psycopg2-binary==2.9.10",
+    "clerk-backend-api==1.8.0",
+    "groq==0.32.0",
+    "rapidfuzz>=3.0,<4.0",
+    "python-jose[cryptography]>=3.3,<4.0",
+    "pyjwt>=2.8,<3.0",
+    "tenacity>=8.0,<9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=3.7,<4.0",
+    "black==24.10.0",
+    "isort==5.13.2",
+    "mypy==1.13.0",
+    "pytest>=7.4,<8.3",
+    "pytest-asyncio>=0.21,<0.24",
+    "pytest-mock>=3.12,<4.0",
+    "pytest-cov>=4.1,<5.0",
+    "faker>=20.0,<25.0",
+]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["app"]
+mypy_path = ["app"]
+pretty = true
+show_error_codes = true
+warn_return_any = false
+warn_unused_configs = true
+install_types = true
+non_interactive = true
+ignore_missing_imports = true
+follow_imports = "skip"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "alembic.*",
+    "clerk_backend_api.*",
+    "groq.*",
+    "psycopg2.*",
+    "rapidfuzz.*",
+    "sqlalchemy.*",
+    "tenacity.*",
+    "uvicorn.*",
+]
+ignore_missing_imports = true

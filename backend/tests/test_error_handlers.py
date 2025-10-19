@@ -1,8 +1,6 @@
 """
 Test error handling and exception handlers.
 """
-import pytest
-from fastapi import HTTPException
 
 
 class TestErrorHandlers:
@@ -12,10 +10,10 @@ class TestErrorHandlers:
         """Test that HTTPException is formatted correctly."""
         # Trigger a 404 by accessing non-existent session
         response = client.get("/api/sessions/99999")
-        
+
         assert response.status_code == 404
         data = response.json()
-        
+
         # Check error response structure
         assert "type" in data or "detail" in data
 
@@ -23,42 +21,42 @@ class TestErrorHandlers:
         """Test validation error returns 422."""
         # Send request with missing required field
         response = client.post("/api/audio")
-        
+
         assert response.status_code == 422
 
     def test_cors_headers_present(self, client):
         """Test that CORS headers are present."""
         response = client.get("/api/sessions")
-        
+
         # CORS should allow all origins
         assert response.status_code == 200
 
     def test_json_response_content_type(self, client, test_db):
         """Test that responses have correct content type."""
         from app.models import Session
-        
+
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         assert "application/json" in response.headers.get("content-type", "")
 
     def test_datetime_serialization_with_z(self, client, test_db):
         """Test that datetime fields are serialized with Z suffix."""
         from app.models import Session
-        
+
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Check that datetime fields end with 'Z' or contain timezone info
         if "created_at" in data:
             assert isinstance(data["created_at"], str)
@@ -70,10 +68,10 @@ class TestAPIErrorFormat:
     def test_not_found_error_format(self, client):
         """Test that 404 errors follow standard format."""
         response = client.get("/api/sessions/99999")
-        
+
         assert response.status_code == 404
         data = response.json()
-        
+
         # Should have detail or type field
         assert "detail" in data or "type" in data
 
@@ -81,7 +79,7 @@ class TestAPIErrorFormat:
         """Test that unsupported methods return 405."""
         # Try DELETE on a read-only endpoint
         response = client.delete("/api/sessions")
-        
+
         assert response.status_code in [404, 405]
 
 
@@ -91,14 +89,14 @@ class TestRequestLogging:
     def test_successful_request_logs(self, client):
         """Test that successful requests complete without error."""
         response = client.get("/api/sessions")
-        
+
         # Should complete successfully
         assert response.status_code == 200
 
     def test_failed_request_logs(self, client):
         """Test that failed requests complete without error."""
         response = client.get("/api/sessions/99999")
-        
+
         # Should fail gracefully
         assert response.status_code == 404
 
@@ -109,14 +107,14 @@ class TestMainAppConfiguration:
     def test_app_title(self):
         """Test that app has correct title."""
         from app.main import create_app
-        
+
         app = create_app()
         assert app.title == "Speakly API"
 
     def test_app_version(self):
         """Test that app has version set."""
         from app.main import create_app
-        
+
         app = create_app()
         assert hasattr(app, "version")
         assert app.version is not None
@@ -124,21 +122,21 @@ class TestMainAppConfiguration:
     def test_app_has_cors_middleware(self):
         """Test that CORS middleware is configured."""
         from app.main import create_app
-        
+
         app = create_app()
-        
+
         # Check that middleware is registered
         assert len(app.user_middleware) > 0
 
     def test_app_includes_routers(self):
         """Test that all routers are registered."""
         from app.main import create_app
-        
+
         app = create_app()
-        
+
         # Check that routes exist
         routes = [route.path for route in app.routes]
-        
+
         # Key endpoints should be registered
         assert any("/api/audio" in path for path in routes)
         assert any("/api/sessions" in path for path in routes)
@@ -150,17 +148,16 @@ class TestCustomJSONEncoding:
     def test_datetime_fields_encoded_properly(self, client, test_db):
         """Test that datetime fields are encoded correctly."""
         from app.models import Session
-        from datetime import datetime
-        
+
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Datetime should be serialized as string
         assert isinstance(data["created_at"], str)
         assert isinstance(data["updated_at"], str)
@@ -168,24 +165,22 @@ class TestCustomJSONEncoding:
     def test_nested_datetime_encoding(self, client, test_db):
         """Test that nested datetime fields are encoded correctly."""
         from app.models import Session, Transcription
-        
+
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         transcription = Transcription(
-            session_id=session.id,
-            text="Test",
-            status="completed"
+            session_id=session.id, text="Test", status="completed"
         )
         test_db.add(transcription)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Check nested transcription datetime
         if data["transcriptions"]:
             trans = data["transcriptions"][0]
@@ -208,9 +203,9 @@ class TestExceptionHandling:
         response = client.post(
             "/api/audio",
             data="not valid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
-        
+
         # Should return validation error, not crash
         assert response.status_code in [400, 422]
 
@@ -221,13 +216,13 @@ class TestMiddleware:
     def test_request_completes_with_middleware(self, client):
         """Test that requests complete successfully with all middleware."""
         response = client.get("/api/sessions")
-        
+
         # Should complete without middleware errors
         assert response.status_code == 200
 
     def test_error_request_completes_with_middleware(self, client):
         """Test that error requests complete with middleware."""
         response = client.get("/api/sessions/99999")
-        
+
         # Should complete with error
         assert response.status_code == 404

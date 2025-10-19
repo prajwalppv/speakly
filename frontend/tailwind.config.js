@@ -1,10 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     container: {
       center: true,
@@ -109,12 +106,12 @@ export default {
         "slide-up": "slide-up 0.3s ease-out",
       },
       backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-gold': 'linear-gradient(135deg, #d4af37 0%, #f4d03f 100%)',
-        'gradient-blue': 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)',
-        'gradient-green': 'linear-gradient(135deg, #2dd4bf 0%, #5eead4 100%)',
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
+        "gradient-gold": "linear-gradient(135deg, #d4af37 0%, #f4d03f 100%)",
+        "gradient-blue": "linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)",
+        "gradient-green": "linear-gradient(135deg, #2dd4bf 0%, #5eead4 100%)",
       },
     },
   },
   plugins: [require("tailwindcss-animate")],
-}
+};

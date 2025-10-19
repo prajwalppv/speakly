@@ -61,8 +61,8 @@
 
 ### Build Configuration
 - [ ] Root directory verified (empty or `/`)
-- [ ] Build command: `pip install -r backend/requirements-dev.txt`
-- [ ] Start command: `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
+- [ ] Build command: `cd backend && uv sync --frozen --no-dev`
+- [ ] Start command: `cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
 ### Deployment
 - [ ] Backend deployed successfully

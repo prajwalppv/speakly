@@ -22,7 +22,9 @@ def _build_html_content(build: JourneyBuildResult) -> str:
     todos = payload.get("todos", {})
     top_tags = payload.get("top_tags", [])
 
-    summary_html = (build.payload.get("summary") if isinstance(build.payload, dict) else "") or ""
+    summary_html = (
+        build.payload.get("summary") if isinstance(build.payload, dict) else ""
+    ) or ""
     summary_html = str(summary_html).replace("\n", "<br>")
 
     lines = [
@@ -56,7 +58,9 @@ def _build_html_content(build: JourneyBuildResult) -> str:
     if todos.get("highlights"):
         lines.append("<h3>Task Highlights</h3><ul>")
         for todo in todos["highlights"][:5]:
-            lines.append(f"<li>{todo.get('title')} – status: {todo.get('status') or 'unknown'}</li>")
+            lines.append(
+                f"<li>{todo.get('title')} – status: {todo.get('status') or 'unknown'}</li>"
+            )
         lines.append("</ul>")
 
     lines.append("<p>You can view full details in Speakly.</p>")
@@ -118,10 +122,16 @@ def send_journey_report_email(report: Report, build: JourneyBuildResult) -> None
                 },
             )
             response.raise_for_status()
-            logger.info("Journey email sent", extra={"report_id": report.id, "user_id": user.id})
+            logger.info(
+                "Journey email sent", extra={"report_id": report.id, "user_id": user.id}
+            )
     except httpx.HTTPStatusError as exc:
         logger.error(
-            "Brevo send failed: %s", exc.response.text[:200], extra={"report_id": report.id}
+            "Brevo send failed: %s",
+            exc.response.text[:200],
+            extra={"report_id": report.id},
         )
     except Exception:
-        logger.exception("Unexpected error sending journey email", extra={"report_id": report.id})
+        logger.exception(
+            "Unexpected error sending journey email", extra={"report_id": report.id}
+        )

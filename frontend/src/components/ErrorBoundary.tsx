@@ -1,5 +1,5 @@
-import { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw, RotateCw } from 'lucide-react';
+import { Component, ErrorInfo, ReactNode } from "react";
+import { AlertTriangle, RefreshCw, RotateCw } from "lucide-react";
 
 interface Props {
   children: ReactNode;
@@ -13,7 +13,7 @@ interface State {
 
 /**
  * Error Boundary component to catch and handle React errors gracefully.
- * 
+ *
  * @example
  * <ErrorBoundary>
  *   <MyComponent />
@@ -30,7 +30,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
   }
 
   handleReset = () => {
@@ -55,17 +55,17 @@ export class ErrorBoundary extends Component<Props, State> {
               Something went wrong
             </h2>
             <p className="text-bone-dim text-sm">
-              {this.state.error?.message || 'An unexpected error occurred'}
+              {this.state.error?.message || "An unexpected error occurred"}
             </p>
             <div className="flex flex-col gap-3">
-              <button 
+              <button
                 className="w-full px-4 py-2 bg-gradient-blue text-bone rounded-lg font-medium hover:shadow-lg hover:shadow-blue/50 transition-all flex items-center justify-center gap-2"
                 onClick={this.handleReset}
               >
                 <RefreshCw size={18} />
                 Try Again
               </button>
-              <button 
+              <button
                 className="w-full px-4 py-2 border-2 border-bone-dim text-bone-dim rounded-lg font-medium hover:bg-white/5 transition-all flex items-center justify-center gap-2"
                 onClick={() => window.location.reload()}
               >
