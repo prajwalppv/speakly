@@ -395,6 +395,41 @@ class TestSessionReviewFlow:
         assert test_db.query(Todo).filter_by(session_id=session.id).count() == 0
 
 
+class TestSessionDeletion:
+    """Tests for deleting sessions."""
+
+    def test_delete_single_session(self, client, test_db):
+        session = Session(user_id=1, audio_path=None, status="completed")
+        test_db.add(session)
+        test_db.commit()
+
+        response = client.delete(f"/api/sessions/{session.id}")
+
+        assert response.status_code == 204
+        assert test_db.query(Session).filter_by(id=session.id).first() is None
+
+    def test_bulk_delete_sessions(self, client, test_db):
+        session1 = Session(user_id=1, audio_path=None, status="completed")
+        session2 = Session(user_id=1, audio_path=None, status="pending")
+        test_db.add_all([session1, session2])
+        test_db.commit()
+
+        response = client.post(
+            "/api/sessions/bulk-delete",
+            json={"session_ids": [session1.id, session2.id, 9999]},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["deleted"] == 2
+        assert 9999 in data["not_found"]
+        remaining = (
+            test_db.query(Session)
+            .filter(Session.id.in_([session1.id, session2.id]))
+            .count()
+        )
+        assert remaining == 0
+
 
 class TestSessionSerialization:
     """Test session serialization functions."""

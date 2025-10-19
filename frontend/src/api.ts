@@ -172,6 +172,22 @@ export async function fetchSessions(params: SessionFilterParams = {}): Promise<S
   return response.data;
 }
 
+export async function deleteSession(sessionId: number): Promise<void> {
+  await client.delete(`/api/sessions/${sessionId}`);
+}
+
+export interface SessionBulkDeleteResult {
+  deleted: number;
+  not_found: number[];
+}
+
+export async function deleteSessionsBulk(sessionIds: number[]): Promise<SessionBulkDeleteResult> {
+  const response = await client.post<SessionBulkDeleteResult>("/api/sessions/bulk-delete", {
+    session_ids: sessionIds,
+  });
+  return response.data;
+}
+
 export async function approveSession(sessionId: number): Promise<SessionRecord> {
   const response = await client.post<SessionRecord>(`/api/sessions/${sessionId}/approve`);
   return response.data;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { approveSession, fetchSessions, rejectSession, SessionRecord } from '../api';
+import { approveSession, fetchSessions, rejectSession, deleteSession as deleteSessionApi, deleteSessionsBulk, SessionRecord } from '../api';
 import TaskManager from './TaskManager';
 import TranscriptEditor from './TranscriptEditor';
 import ExportButtons from './ExportButtons';
@@ -33,7 +33,8 @@ import {
   Edit2,
   ShieldCheck,
   Ban,
-  Eye
+  Eye,
+  Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -66,6 +67,9 @@ export default function SessionsList({
   const [copiedSummaryId, setCopiedSummaryId] = useState<number | null>(null);
   const [pendingReviewAction, setPendingReviewAction] = useState<{ id: number; type: 'approve' | 'reject' } | null>(null);
   const [reviewError, setReviewError] = useState<{ id: number; message: string } | null>(null);
+  const [selectedSessions, setSelectedSessions] = useState<Set<number>>(new Set());
+  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Apply external search query from command palette
   useEffect(() => {
@@ -129,9 +133,102 @@ export default function SessionsList({
     }
   };
 
+  const toggleSelectSession = (sessionId: number) => {
+    setSelectedSessions((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedSessions(new Set());
+  };
+
+  const handleDeleteSession = async (
+    e: React.MouseEvent,
+    sessionId: number
+  ) => {
+    e.stopPropagation();
+    if (deletingSessionId === sessionId) {
+      return;
+    }
+    if (!confirm("Delete this recording permanently? This cannot be undone.")) {
+      return;
+    }
+    setDeletingSessionId(sessionId);
+    try {
+      await deleteSessionApi(sessionId);
+      setSelectedSessions((prev) => {
+        if (!prev.has(sessionId)) {
+          return prev;
+        }
+        const next = new Set(prev);
+        next.delete(sessionId);
+        return next;
+      });
+      await loadSessions();
+    } catch (error) {
+      alert("Failed to delete recording. Please try again.");
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedSessions);
+    if (ids.length === 0) {
+      return;
+    }
+    if (
+      !confirm(
+        `Delete ${ids.length} recording${ids.length === 1 ? "" : "s"} permanently?`
+      )
+    ) {
+      return;
+    }
+    setBulkDeleting(true);
+    try {
+      const result = await deleteSessionsBulk(ids);
+      if (result.not_found.length > 0) {
+        alert(
+          `Some recordings were not found or already deleted: ${result.not_found.join(
+            ", "
+          )}`
+        );
+      }
+      clearSelection();
+      await loadSessions();
+    } catch (error) {
+      alert("Failed to delete selected recordings. Please try again.");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   useEffect(() => {
     loadSessions();
   }, [refreshTrigger]);
+
+  useEffect(() => {
+    setSelectedSessions((prev) => {
+      if (prev.size === 0) {
+        return prev;
+      }
+      const validIds = new Set(sessions.map((session) => session.id));
+      const next = new Set<number>();
+      prev.forEach((id) => {
+        if (validIds.has(id)) {
+          next.add(id);
+        }
+      });
+      return next;
+    });
+  }, [sessions]);
 
   // Smart polling: Only poll sessions that are actively processing
   useEffect(() => {
@@ -378,13 +475,43 @@ export default function SessionsList({
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <h2 className="text-2xl font-display font-bold bg-gradient-gold bg-clip-text text-transparent">
           Your Recordings
         </h2>
-        <span className="text-sm text-bone-dim">
-          {filteredSessions.length} of {sessions.length} {sessions.length === 1 ? 'recording' : 'recordings'}
-        </span>
+        <div className="flex items-center gap-3">
+          {selectedSessions.size > 0 ? (
+            <>
+              <span className="text-sm font-medium text-gold">
+                {selectedSessions.size} selected
+              </span>
+              <motion.button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-500/40 bg-red-500/10 text-sm font-semibold text-red-200 hover:bg-red-500/20 transition disabled:opacity-50"
+                whileHover={!bulkDeleting ? { scale: 1.03 } : {}}
+                whileTap={!bulkDeleting ? { scale: 0.97 } : {}}
+              >
+                {bulkDeleting ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Trash2 size={14} />
+                )}
+                Delete Selected
+              </motion.button>
+              <button
+                onClick={clearSelection}
+                className="text-xs text-bone-dim hover:text-bone transition"
+              >
+                Clear
+              </button>
+            </>
+          ) : (
+            <span className="text-sm text-bone-dim">
+              {filteredSessions.length} of {sessions.length} {sessions.length === 1 ? 'recording' : 'recordings'}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Search and Filter Controls */}
@@ -497,6 +624,7 @@ export default function SessionsList({
           const isAwaitingReview = session.status === "awaiting_review";
           const reviewActionInFlight =
             pendingReviewAction && pendingReviewAction.id === session.id;
+          const isSelected = selectedSessions.has(session.id);
 
           return (
             <motion.div
@@ -507,7 +635,8 @@ export default function SessionsList({
               transition={{ delay: 0.05 }}
               className={cn(
                 "bg-gradient-to-br from-black-soft to-black border-2 rounded-xl overflow-hidden cursor-pointer transition-all",
-                isExpanded ? "border-gold/50 shadow-lg shadow-gold/20" : "border-gold/20 hover:border-gold/30"
+                isExpanded ? "border-gold/50 shadow-lg shadow-gold/20" : "border-gold/20 hover:border-gold/30",
+                isSelected && !isExpanded && "border-red-400/50"
               )}
             >
               {/* Compact view */}
@@ -515,6 +644,15 @@ export default function SessionsList({
                 className="p-4 flex items-start gap-4"
                 onClick={() => toggleExpand(session.id)}
               >
+                <div className="pt-1">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelectSession(session.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-4 w-4 rounded border-gold/40 bg-black text-gold focus:ring-gold cursor-pointer"
+                  />
+                </div>
                 <div className="flex-1 min-w-0 space-y-2">
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{getStatusIcon(session.status)}</span>
@@ -622,6 +760,23 @@ export default function SessionsList({
                         {session.todo_count || session.todos.length} {(session.todo_count || session.todos.length) === 1 ? 'action' : 'actions'}
                       </span>
                     )}
+                    <motion.button
+                      onClick={(e) => handleDeleteSession(e, session.id)}
+                      disabled={deletingSessionId === session.id}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition-all",
+                        deletingSessionId === session.id && "opacity-60 cursor-wait"
+                      )}
+                      whileHover={deletingSessionId === session.id ? {} : { scale: 1.05 }}
+                      whileTap={deletingSessionId === session.id ? {} : { scale: 0.95 }}
+                    >
+                      {deletingSessionId === session.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                      Delete
+                    </motion.button>
                   </div>
                   
                   <motion.button

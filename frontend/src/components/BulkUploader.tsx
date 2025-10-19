@@ -1,13 +1,13 @@
 import { useCallback, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { uploadAudioBulk, SessionRecord, fetchSessions, fetchSession, editTranscription, regenerateSession } from "../api";
+import { uploadAudioBulk, SessionRecord, fetchSessions, fetchSession, editTranscription, regenerateSession, deleteSession } from "../api";
 import TranscriptEditor from "./TranscriptEditor";
 import TaskManager from "./TaskManager";
 import AudioRecorder from "./AudioRecorder";
 import Toast, { ToastType } from "./Toast";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Upload, X, CheckCircle2, AlertCircle, Clock, Mic2, ChevronDown, ChevronUp, Sparkles, RefreshCw, Eye } from "lucide-react";
+import { Upload, X, CheckCircle2, AlertCircle, Clock, Mic2, ChevronDown, ChevronUp, Sparkles, RefreshCw, Eye, Trash2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface UploadProgress {
@@ -36,6 +36,7 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [showRecorder, setShowRecorder] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<number | null>(null);
 
   const showToast = useCallback((message: string, type: ToastType) => {
     setToast({ message, type });
@@ -124,6 +125,26 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
       showToast('Regeneration complete!', 'success');
     } catch (error) {
       showToast('Failed to regenerate', 'error');
+    }
+  };
+
+  const handleDeleteSessionRecord = async (sessionId: number) => {
+    if (deletingSessionId === sessionId) {
+      return;
+    }
+    if (!confirm('Delete this recording permanently? This cannot be undone.')) {
+      return;
+    }
+
+    setDeletingSessionId(sessionId);
+    try {
+      await deleteSession(sessionId);
+      setProgress((prev) => prev.filter((item) => item.sessionId !== sessionId));
+      showToast('Recording deleted.', 'success');
+    } catch (error) {
+      showToast('Failed to delete recording.', 'error');
+    } finally {
+      setDeletingSessionId(null);
     }
   };
 
@@ -620,6 +641,28 @@ export default function BulkUploader({ onUploadComplete }: { onUploadComplete?: 
                           {" "}
                           {item.session.status.replace(/_/g, " ")}
                         </span>
+                        <motion.button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (item.sessionId) {
+                              handleDeleteSessionRecord(item.sessionId);
+                            }
+                          }}
+                          disabled={deletingSessionId === item.sessionId}
+                          className={cn(
+                            "px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition-all",
+                            deletingSessionId === item.sessionId && "opacity-60 cursor-wait"
+                          )}
+                          whileHover={deletingSessionId === item.sessionId ? {} : { scale: 1.05 }}
+                          whileTap={deletingSessionId === item.sessionId ? {} : { scale: 0.95 }}
+                        >
+                          {deletingSessionId === item.sessionId ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={12} />
+                          )}
+                          Delete
+                        </motion.button>
                       </div>
                     )}
 

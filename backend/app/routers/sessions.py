@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
 
 from ..auth import get_current_user
@@ -21,6 +23,8 @@ from ..schemas import (
     SessionResponse,
     SpeakerSegmentResponse,
     SummaryResponse,
+    SessionBulkDeleteRequest,
+    SessionBulkDeleteResponse,
     TagResponse,
     TodoResponse,
     TranscriptionResponse,
@@ -174,6 +178,72 @@ def _get_latest_task_updates(db: Session, session_id: int) -> list[dict]:
     return []
 
 
+def _delete_session_record(session: SessionModel, db: Session) -> None:
+    """Delete a session and related resources."""
+    # Attempt to remove synced TickTick tasks before deleting
+    todos = list(session.todos)
+    if todos:
+        try:
+            from ..services.task_sync_service import task_sync_service
+
+            for todo in todos:
+                if todo.ticktick_task_id and todo.ticktick_project_id:
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            loop.run_until_complete(
+                                task_sync_service.delete_from_ticktick(
+                                    todo.ticktick_task_id,
+                                    todo.ticktick_project_id,
+                                )
+                            )
+                        finally:
+                            loop.close()
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to delete TickTick task during session cleanup",
+                            extra={
+                                "extra_data": {
+                                    "session_id": session.id,
+                                    "todo_id": todo.id,
+                                    "error": str(exc),
+                                }
+                            },
+                        )
+        finally:
+            asyncio.set_event_loop(None)
+
+    # Delete stored audio if it still exists
+    if session.audio_path:
+        try:
+            audio_path = Path(session.audio_path)
+            if audio_path.exists():
+                audio_path.unlink()
+                logger.info(
+                    "Deleted audio file while removing session",
+                    extra={
+                        "extra_data": {
+                            "session_id": session.id,
+                            "path": session.audio_path,
+                        }
+                    },
+                )
+        except Exception as exc:  # pragma: no cover - best effort cleanup
+            logger.warning(
+                "Failed to delete audio file during session cleanup",
+                extra={
+                    "extra_data": {
+                        "session_id": session.id,
+                        "path": session.audio_path,
+                        "error": str(exc),
+                    }
+                },
+            )
+
+    db.delete(session)
+
+
 @router.get("", response_model=list[SessionResponse])
 async def list_sessions(
     has_pj: bool | None = Query(default=None),
@@ -244,6 +314,51 @@ def get_session_detail(
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return _serialize_session(session)
+
+
+@router.delete("/{session_id}", status_code=204)
+def delete_session(
+    session_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> Response:
+    session = _get_session_with_details(db, session_id, current_user.id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    _delete_session_record(session, db)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/bulk-delete", response_model=SessionBulkDeleteResponse)
+def bulk_delete_sessions(
+    payload: SessionBulkDeleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> SessionBulkDeleteResponse:
+    if not payload.session_ids:
+        return SessionBulkDeleteResponse(deleted=0, not_found=[])
+
+    sessions = (
+        db.query(SessionModel)
+        .options(
+            joinedload(SessionModel.todos),
+        )
+        .filter(
+            SessionModel.user_id == current_user.id,
+            SessionModel.id.in_(payload.session_ids),
+        )
+        .all()
+    )
+
+    found_ids = {session.id for session in sessions}
+    for session in sessions:
+        _delete_session_record(session, db)
+    db.commit()
+
+    not_found = [sid for sid in payload.session_ids if sid not in found_ids]
+    return SessionBulkDeleteResponse(deleted=len(found_ids), not_found=not_found)
 
 
 @router.post("/{session_id}/approve", response_model=SessionResponse)

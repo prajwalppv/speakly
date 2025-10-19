@@ -157,6 +157,15 @@ class SessionResponse(UTCBaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SessionBulkDeleteRequest(BaseModel):
+    session_ids: list[int] = Field(default_factory=list, min_items=1)
+
+
+class SessionBulkDeleteResponse(BaseModel):
+    deleted: int
+    not_found: list[int] = Field(default_factory=list)
+
+
 class UserPreferencesResponse(UTCBaseModel):
     auto_approve_sessions: bool
 
@@ -292,6 +301,8 @@ __all__ = [
     "TodoResponse",
     "SummaryResponse",
     "SessionResponse",
+    "SessionBulkDeleteRequest",
+    "SessionBulkDeleteResponse",
     "ElevenLabsWebhookPayload",
     "TagResponse",
     "TagCreate",
