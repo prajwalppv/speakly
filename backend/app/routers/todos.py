@@ -13,9 +13,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..auth import get_current_user
 from ..database import get_session
 from ..models import Session as SessionModel
-from ..models import Todo
+from ..models import Todo, User
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class TodoResponse(BaseModel):
 def create_todo(
     session_id: int,
     request: CreateTodoRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> dict[str, Any]:
     """
@@ -80,6 +82,11 @@ def create_todo(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session {session_id} not found",
+        )
+    if session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to modify this session",
         )
 
     # Create todo
@@ -124,6 +131,7 @@ def create_todo(
 async def update_todo(
     todo_id: int,
     request: UpdateTodoRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> dict[str, Any]:
     """
@@ -145,6 +153,11 @@ async def update_todo(
     if not todo:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Todo {todo_id} not found"
+        )
+    if todo.session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to modify this todo",
         )
 
     # Update local database first
@@ -170,7 +183,7 @@ async def update_todo(
         try:
             from ..services.ticktick import TickTickClient
 
-            client = TickTickClient(user_id=1, db=db)  # TODO: Get actual user_id
+            client = TickTickClient(user_id=current_user.id, db=db)
 
             # Prepare TickTick updates
             ticktick_updates = {}
@@ -234,6 +247,7 @@ async def update_todo(
 )
 async def delete_todo(
     todo_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> None:
     """
@@ -252,6 +266,11 @@ async def delete_todo(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Todo {todo_id} not found"
         )
+    if todo.session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this todo",
+        )
 
     session_id = todo.session_id
     ticktick_task_id = todo.ticktick_task_id
@@ -262,7 +281,7 @@ async def delete_todo(
         try:
             from ..services.ticktick import TickTickClient
 
-            client = TickTickClient(user_id=1, db=db)  # TODO: Get actual user_id
+            client = TickTickClient(user_id=current_user.id, db=db)
             await client.delete_task(ticktick_task_id, ticktick_project_id)
 
             logger.info(f"Deleted task {ticktick_task_id} from TickTick successfully")
@@ -296,6 +315,7 @@ async def delete_todo(
 @router.post("/{todo_id}/resync", status_code=status.HTTP_202_ACCEPTED)
 def resync_todo(
     todo_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_session),
 ) -> dict[str, str]:
     """
@@ -316,6 +336,11 @@ def resync_todo(
     if not todo:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Todo {todo_id} not found"
+        )
+    if todo.session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to resync this todo",
         )
 
     # Reset sync status to trigger re-sync

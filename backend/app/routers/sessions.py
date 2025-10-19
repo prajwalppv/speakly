@@ -195,6 +195,7 @@ def _delete_session_record(session: SessionModel, db: Session) -> None:
                                 task_sync_service.delete_from_ticktick(
                                     todo.ticktick_task_id,
                                     todo.ticktick_project_id,
+                                    session.user_id,
                                 )
                             )
                         finally:
@@ -601,7 +602,9 @@ def regenerate_summary_and_tasks(
                 try:
                     loop.run_until_complete(
                         task_sync_service.delete_from_ticktick(
-                            todo.ticktick_task_id, todo.ticktick_project_id
+                            todo.ticktick_task_id,
+                            todo.ticktick_project_id,
+                            session.user_id,
                         )
                     )
                 finally:

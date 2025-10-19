@@ -422,8 +422,9 @@ class TestDeleteFromTicktick:
         mock_session_local.return_value.__enter__.return_value = mock_db
 
         service = TaskSyncService()
-        await service.delete_from_ticktick("task-123", "proj-1")
+        await service.delete_from_ticktick("task-123", "proj-1", user_id=7)
 
+        mock_client_class.assert_called_once_with(user_id=7, db=mock_db)
         mock_client.delete_task.assert_called_once_with("task-123", "proj-1")
 
     @pytest.mark.asyncio
@@ -445,7 +446,7 @@ class TestDeleteFromTicktick:
         service = TaskSyncService()
 
         with pytest.raises(Exception, match="Delete failed"):
-            await service.delete_from_ticktick("task-123", "proj-1")
+            await service.delete_from_ticktick("task-123", "proj-1", user_id=3)
 
 
 class TestScheduleTaskSync:
