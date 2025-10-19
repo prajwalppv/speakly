@@ -187,7 +187,7 @@ uv run pytest tests/ -v
 - Install tooling once: install [uv](https://docs.astral.sh/uv/getting-started/install/) then run `uv sync --extra dev` inside `backend/`; run `npm install` inside `frontend/`.
 - Register the git hooks: `uv run pre-commit install` and `uv run pre-commit install --hook-type pre-push`.
 - Run `uv run pre-commit run --all-files` before opening a PR to bootstrap the hook environments.
-- On commit the hooks format Python (isort + Black) and frontend assets (Prettier), upgrade syntax, and type-check the React code while Ruff handles linting; mypy runs to catch type issues with auto-installed stubs.
+- On commit the hooks format Python (isort + Black), run backend unit tests, format frontend assets (Prettier), upgrade syntax, and type-check the React code; Ruff lints and mypy runs with auto-installed stubs.
 - Prettier runs via `npx`, so the first commit may download its toolchain (cached afterward).
 - On push the backend test suite executes via `pytest` to catch regressions before CI.
 

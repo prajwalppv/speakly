@@ -64,6 +64,12 @@ repos:
         language: system
         pass_filenames: true
         files: ^frontend/.*\.(ts|tsx|js|jsx|json|css|md|html|cjs|mjs|yaml|yml)$
+      - id: backend-pytest-unit
+        name: Backend pytest (unit subset)
+        entry: bash -c "cd backend && uv run pytest --no-cov --cache-clear --maxfail=1 -m 'not slow and not integration and not external'"
+        language: system
+        pass_filenames: false
+        stages: [commit]
       - id: frontend-typecheck
         name: Frontend TypeScript typecheck
         entry: npm run --prefix frontend typecheck
