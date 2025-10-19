@@ -1,37 +1,76 @@
 # 🎙️ Speakly
 
-**AI-powered voice transcription with automatic summaries, tags, and task extraction.**
+**Open-source, production-grade voice transcription with AI summaries, task extraction, and developer-friendly workflows.** Contributions are welcome—bring your ideas, open an issue, and jump in!
 
 ---
 
-## 🚀 Features
+## ❤️ How to Get Involved
 
-- 🎙️ **Voice Transcription** - ElevenLabs Scribe STT
-- 🤖 **AI Summaries** - DeepSeek R1 Distill (70B) via Groq
-- 🏷️ **Auto-tagging** - Smart content categorization
-- ✅ **TODO Extraction** - Automatic task identification
-- 🔄 **TickTick Integration** - Sync tasks automatically
-- 👥 **Multi-user** - Secure Clerk authentication
-- 📦 **Bulk Upload** - Process up to 50 files at once
-- 📊 **Sessions Dashboard** - Beautiful UI with collapsible cards
+- Read the quick start below and spin up the project with Docker (preferred).
+- Review our [CONTRIBUTIONS.md](CONTRIBUTIONS.md) for branching strategy, quality gates, and PR etiquette.
+- Join discussions by opening issues or feature requests—no idea is too small.
 
 ---
 
-## 📦 Quick Start
+## 🚀 Feature Highlights
 
-### Local Development
+- 🎙️ **Voice Transcription** – ElevenLabs Scribe speech-to-text pipeline.
+- 🤖 **AI Summaries** – DeepSeek R1 Distill (70B) via Groq for post-call insights.
+- 🏷️ **Auto-tagging** – Smart categorisation of conversation topics.
+- ✅ **Task Extraction & Sync** – Auto-generated TODOs with TickTick integration.
+- 📊 **Sessions Dashboard** – React + Tailwind UI with real-time updates.
+- 🛡️ **Enterprise-ready** – FastAPI, SQLAlchemy, async processing, and robust hooks.
+
+---
+
+## 🧑‍💻 Developer Quick Start (Docker-first)
 
 ```bash
-# 1. Copy environment file
+# 1. Copy environment variables
 cp .env.example .env
 
-# 2. Add your API keys to .env
+# 2. Fill in essential API keys inside .env
 
-# 3. Start the app
-docker compose up --build backend frontend
+# 3. Start the full stack (backend + frontend + db)
+docker compose up --build
 ```
 
-Visit: http://localhost:5173
+Once the stack finishes booting:
+- Frontend: http://localhost:5173
+- Backend API & docs: http://localhost:8000/docs
+
+### Hot Reload and Data
+- Code changes auto-reload thanks to mounted volumes.
+- Postgres data persists via the `postgres_data` volume; wipe with `docker compose down --volumes`.
+
+### Optional: Local-only tooling
+Prefer running services on the host? Follow [CONTRIBUTIONS.md](CONTRIBUTIONS.md#optional-local-workflows) for uv-powered Python and npm scripts.
+
+---
+
+## 🧰 Day-to-day Developer Workflow
+
+- **Pre-commit hooks** (auto-managed): format (isort + Black + Prettier), lint (Ruff), type-check (mypy), and run backend unit tests. Install with:
+  ```bash
+  uv run pre-commit install
+  uv run pre-commit install --hook-type pre-push
+  ```
+  First run? Execute `uv run pre-commit run --all-files` to warm caches.
+
+- **Run targeted tests**:
+  ```bash
+  # In Docker
+  docker compose run --rm backend-tests
+
+  # On host (after uv sync)
+  cd backend
+  uv run pytest -m "not slow and not integration"
+  ```
+
+- **Commit & PR**:
+  1. Create a feature branch from `main`.
+  2. Keep commits small and descriptive.
+  3. Open a PR referencing issues and checklist from CONTRIBUTIONS.md.
 
 ---
 
@@ -82,8 +121,8 @@ Visit: http://localhost:5173
 - **Docker** - Local development & containerization
 
 ### Continuous Integration
-- **Backend CI** – Runs the FastAPI test suite on every push/PR
-- **Frontend CI** – Builds the React app to ensure production assets compile cleanly
+- **Backend CI** – Runs uv-powered test suite and linting on every push/PR.
+- **Frontend CI** – Builds the React app to ensure production assets compile cleanly.
 
 ---
 
@@ -174,12 +213,16 @@ See [.env.example](.env.example) for all required variables.
 ## 🧪 Testing
 
 ```bash
-# Backend tests
-docker compose run --rm --profile test backend-tests
+# backend (Docker)
+docker compose run --rm backend-tests
 
-# Or run locally with uv (after `uv sync --extra dev`)
+# backend (host, after `uv sync --extra dev`)
 cd backend
 uv run pytest tests/ -v
+
+# frontend
+cd frontend
+npm run test
 ```
 
 ## ✅ Pre-commit Hooks
@@ -190,6 +233,16 @@ uv run pytest tests/ -v
 - On commit the hooks format Python (isort + Black), run backend unit tests, format frontend assets (Prettier), upgrade syntax, and type-check the React code; Ruff lints and mypy runs with auto-installed stubs.
 - Prettier runs via `npx`, so the first commit may download its toolchain (cached afterward).
 - On push the backend test suite executes via `pytest` to catch regressions before CI.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions of all sizes—bug fixes, docs, new features, even quick typo fixes.
+
+- Read the full guidelines in [CONTRIBUTIONS.md](CONTRIBUTIONS.md).
+- Join discussions in issues to coordinate before large changes.
+- Follow the Docker-first flow unless a maintainer signs off on an alternative.
 
 ---
 
@@ -239,6 +292,10 @@ open docs/VERCEL_RAILWAY_DEPLOYMENT.md
 # See Fly.io guide
 open DEPLOY.md
 ```
+
+---
+
+Maintained with ❤️ by the Speakly community. Let’s build something remarkable together! 🎧
 
 ---
 
