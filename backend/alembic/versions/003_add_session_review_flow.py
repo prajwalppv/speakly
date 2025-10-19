@@ -5,10 +5,9 @@ Revises: 002
 Create Date: 2025-02-17 00:00:00
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.sql import expression
-
 
 revision = "003"
 down_revision = "002"
@@ -46,8 +45,16 @@ def upgrade() -> None:
     )
 
     # Ensure existing rows have proper defaults without relying on server defaults afterwards
-    op.execute(sa.text("UPDATE users SET auto_approve_sessions = true WHERE auto_approve_sessions IS NULL"))
-    op.execute(sa.text("UPDATE sessions SET review_status = 'pending' WHERE review_status IS NULL"))
+    op.execute(
+        sa.text(
+            "UPDATE users SET auto_approve_sessions = true WHERE auto_approve_sessions IS NULL"
+        )
+    )
+    op.execute(
+        sa.text(
+            "UPDATE sessions SET review_status = 'pending' WHERE review_status IS NULL"
+        )
+    )
 
     # Drop server default after data backfill to avoid locking in database-level default semantics
     op.alter_column("users", "auto_approve_sessions", server_default=None)

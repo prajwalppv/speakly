@@ -1,10 +1,10 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { CheckCircle2, Loader2, AlertCircle, Clock } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React from "react";
+import { motion } from "framer-motion";
+import { CheckCircle2, Loader2, AlertCircle, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ProcessingStage {
-  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'error';
+  status: "pending" | "in_progress" | "completed" | "failed" | "error";
   timestamp: string | null;
   error?: string;
 }
@@ -31,15 +31,48 @@ interface StageInfo {
 }
 
 const STAGES: StageInfo[] = [
-  { key: 'uploaded', label: 'Upload Complete', icon: '📤', estimatedSeconds: 0 },
-  { key: 'transcribing', label: 'Transcribing Audio', icon: '🎙️', estimatedSeconds: 120 },
-  { key: 'diarizing', label: 'Identifying Speakers', icon: '👥', estimatedSeconds: 30 },
-  { key: 'summarizing', label: 'Generating Summary', icon: '💡', estimatedSeconds: 15 },
-  { key: 'extracting_tasks', label: 'Extracting Tasks', icon: '📋', estimatedSeconds: 10 },
-  { key: 'syncing_tasks', label: 'Syncing to TickTick', icon: '🔄', estimatedSeconds: 5 },
+  {
+    key: "uploaded",
+    label: "Upload Complete",
+    icon: "📤",
+    estimatedSeconds: 0,
+  },
+  {
+    key: "transcribing",
+    label: "Transcribing Audio",
+    icon: "🎙️",
+    estimatedSeconds: 120,
+  },
+  {
+    key: "diarizing",
+    label: "Identifying Speakers",
+    icon: "👥",
+    estimatedSeconds: 30,
+  },
+  {
+    key: "summarizing",
+    label: "Generating Summary",
+    icon: "💡",
+    estimatedSeconds: 15,
+  },
+  {
+    key: "extracting_tasks",
+    label: "Extracting Tasks",
+    icon: "📋",
+    estimatedSeconds: 10,
+  },
+  {
+    key: "syncing_tasks",
+    label: "Syncing to TickTick",
+    icon: "🔄",
+    estimatedSeconds: 5,
+  },
 ];
 
-const ProcessingProgress: React.FC<ProcessingProgressProps> = ({ stages, sessionStatus }) => {
+const ProcessingProgress: React.FC<ProcessingProgressProps> = ({
+  stages,
+  sessionStatus,
+}) => {
   // Don't show if no stages data
   if (!stages) {
     return null;
@@ -48,7 +81,10 @@ const ProcessingProgress: React.FC<ProcessingProgressProps> = ({ stages, session
   const getCurrentStage = (): number => {
     for (let i = 0; i < STAGES.length; i++) {
       const stage = stages[STAGES[i].key];
-      if (stage && (stage.status === 'in_progress' || stage.status === 'pending')) {
+      if (
+        stage &&
+        (stage.status === "in_progress" || stage.status === "pending")
+      ) {
         return i;
       }
     }
@@ -58,7 +94,7 @@ const ProcessingProgress: React.FC<ProcessingProgressProps> = ({ stages, session
   const getTimeRemaining = (): string => {
     const currentIdx = getCurrentStage();
     let totalSeconds = 0;
-    
+
     for (let i = currentIdx; i < STAGES.length; i++) {
       totalSeconds += STAGES[i].estimatedSeconds;
     }
@@ -70,14 +106,16 @@ const ProcessingProgress: React.FC<ProcessingProgressProps> = ({ stages, session
     return `~${minutes} min`;
   };
 
-  const getStageStatus = (stageKey: keyof ProcessingStages): 'pending' | 'in_progress' | 'completed' | 'failed' | 'error' => {
+  const getStageStatus = (
+    stageKey: keyof ProcessingStages,
+  ): "pending" | "in_progress" | "completed" | "failed" | "error" => {
     const stage = stages[stageKey];
-    return stage?.status || 'pending';
+    return stage?.status || "pending";
   };
 
   const currentStageIdx = getCurrentStage();
   const timeRemaining = getTimeRemaining();
-  const isComplete = sessionStatus === 'completed';
+  const isComplete = sessionStatus === "completed";
 
   return (
     <motion.div
@@ -127,57 +165,71 @@ const ProcessingProgress: React.FC<ProcessingProgressProps> = ({ stages, session
               className="flex items-start gap-3"
             >
               <div className="flex flex-col items-center">
-                <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center text-sm border-2 transition-all",
-                  status === 'completed' && "bg-green/20 border-green text-green",
-                  status === 'in_progress' && "bg-blue/20 border-blue text-blue",
-                  status === 'error' && "bg-red-500/20 border-red-500 text-red-500",
-                  status === 'pending' && "bg-bone-dim/10 border-bone-dim/30 text-bone-dim"
-                )}>
-                  {status === 'completed' && <CheckCircle2 size={16} />}
-                  {status === 'in_progress' && (
+                <div
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center text-sm border-2 transition-all",
+                    status === "completed" &&
+                      "bg-green/20 border-green text-green",
+                    status === "in_progress" &&
+                      "bg-blue/20 border-blue text-blue",
+                    status === "error" &&
+                      "bg-red-500/20 border-red-500 text-red-500",
+                    status === "pending" &&
+                      "bg-bone-dim/10 border-bone-dim/30 text-bone-dim",
+                  )}
+                >
+                  {status === "completed" && <CheckCircle2 size={16} />}
+                  {status === "in_progress" && (
                     <motion.div
                       animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      transition={{
+                        duration: 1,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
                     >
                       <Loader2 size={16} />
                     </motion.div>
                   )}
-                  {status === 'error' && <AlertCircle size={16} />}
-                  {status === 'pending' && <span>{stageInfo.icon}</span>}
+                  {status === "error" && <AlertCircle size={16} />}
+                  {status === "pending" && <span>{stageInfo.icon}</span>}
                 </div>
                 {idx < STAGES.length - 1 && (
-                  <div className={cn(
-                    "w-0.5 h-6 mt-1 transition-colors",
-                    status === 'completed' ? "bg-green/30" : "bg-bone-dim/20"
-                  )} />
+                  <div
+                    className={cn(
+                      "w-0.5 h-6 mt-1 transition-colors",
+                      status === "completed" ? "bg-green/30" : "bg-bone-dim/20",
+                    )}
+                  />
                 )}
               </div>
-              
+
               <div className="flex-1 pt-1">
-                <div className={cn(
-                  "text-sm font-medium transition-colors",
-                  status === 'completed' && "text-green",
-                  status === 'in_progress' && "text-blue",
-                  status === 'error' && "text-red-500",
-                  status === 'pending' && "text-bone-dim"
-                )}>
+                <div
+                  className={cn(
+                    "text-sm font-medium transition-colors",
+                    status === "completed" && "text-green",
+                    status === "in_progress" && "text-blue",
+                    status === "error" && "text-red-500",
+                    status === "pending" && "text-bone-dim",
+                  )}
+                >
                   {stageInfo.label}
                 </div>
-                
-                {status === 'completed' && stage?.timestamp && (
+
+                {status === "completed" && stage?.timestamp && (
                   <div className="text-xs text-bone-dim mt-0.5">
                     ✓ {new Date(stage.timestamp).toLocaleTimeString()}
                   </div>
                 )}
-                
-                {status === 'in_progress' && (
+
+                {status === "in_progress" && (
                   <div className="text-xs text-blue mt-0.5 flex items-center gap-1">
                     In progress...
                   </div>
                 )}
-                
-                {status === 'error' && stage?.error && (
+
+                {status === "error" && stage?.error && (
                   <div className="text-xs text-red-500 mt-0.5 flex items-start gap-1">
                     <AlertCircle size={12} className="mt-0.5" />
                     {stage.error}

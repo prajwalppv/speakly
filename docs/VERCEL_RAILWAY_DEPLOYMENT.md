@@ -170,8 +170,8 @@ SPEAKLY_DEVELOPER_MODE=false
 
 Railway will automatically use the configuration files in your repo:
 
-- **Build Command:** `pip install -r backend/requirements-dev.txt` (from `railway.json`)
-- **Start Command:** `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT`
+- **Build Command:** `cd backend && uv sync --frozen --no-dev`
+- **Start Command:** `cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 
 You shouldn't need to change these, but if needed:
 1. Go to your backend service → **"Settings"** tab
@@ -598,11 +598,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: astral-sh/setup-uv@v2
+        with:
+          python-version: "3.11"
       - name: Run backend tests
+        working-directory: backend
         run: |
-          cd backend
-          pip install -r requirements-dev.txt
-          pytest
+          uv sync --extra dev --frozen
+          uv run pytest
 ```
 
 ### 4. Configure Alerts

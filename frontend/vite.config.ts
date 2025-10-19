@@ -17,12 +17,12 @@ export default defineConfig(({ mode }) => {
       proxy: {
         "/api": {
           target: proxyTarget,
-          changeOrigin: true
-        }
-      }
+          changeOrigin: true,
+        },
+      },
     },
     build: {
-      outDir: "dist"
-    }
+      outDir: "dist",
+    },
   };
 });

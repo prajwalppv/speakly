@@ -18,16 +18,19 @@ logger = logging.getLogger(__name__)
 
 class TickTickNotConfiguredError(Exception):
     """Raised when TickTick integration is not configured."""
+
     pass
 
 
 class TickTickAuthError(Exception):
     """Raised when TickTick authentication fails."""
+
     pass
 
 
 class TickTickAPIError(Exception):
     """Raised when TickTick API request fails."""
+
     pass
 
 
@@ -54,9 +57,11 @@ class TickTickClient:
 
     def _get_token(self) -> TickTickToken:
         """Get valid access token for the user."""
-        token = self.db.query(TickTickToken).filter(
-            TickTickToken.user_id == self.user_id
-        ).first()
+        token = (
+            self.db.query(TickTickToken)
+            .filter(TickTickToken.user_id == self.user_id)
+            .first()
+        )
 
         if not token:
             raise TickTickAuthError(f"No TickTick token found for user {self.user_id}")
@@ -154,14 +159,18 @@ class TickTickClient:
                     f"TickTick API error: {e.response.status_code} - {e.response.text}",
                     extra={"user_id": self.user_id},
                 )
-                raise TickTickAPIError(f"Failed to create task: {e.response.text}") from e
+                raise TickTickAPIError(
+                    f"Failed to create task: {e.response.text}"
+                ) from e
 
             except httpx.RequestError as e:
                 logger.error(
                     f"TickTick request error: {str(e)}",
                     extra={"user_id": self.user_id},
                 )
-                raise TickTickAPIError(f"Failed to connect to TickTick: {str(e)}") from e
+                raise TickTickAPIError(
+                    f"Failed to connect to TickTick: {str(e)}"
+                ) from e
 
     async def get_projects(self) -> list[dict[str, Any]]:
         """
@@ -190,10 +199,14 @@ class TickTickClient:
                     f"TickTick API error: {e.response.status_code}",
                     extra={"user_id": self.user_id},
                 )
-                raise TickTickAPIError(f"Failed to get projects: {e.response.text}") from e
+                raise TickTickAPIError(
+                    f"Failed to get projects: {e.response.text}"
+                ) from e
 
             except httpx.RequestError as e:
-                raise TickTickAPIError(f"Failed to connect to TickTick: {str(e)}") from e
+                raise TickTickAPIError(
+                    f"Failed to connect to TickTick: {str(e)}"
+                ) from e
 
     async def get_or_create_speakly_project(self) -> str:
         """
@@ -255,10 +268,14 @@ class TickTickClient:
                     f"TickTick API error creating project: {e.response.status_code}",
                     extra={"user_id": self.user_id},
                 )
-                raise TickTickAPIError(f"Failed to create Speakly project: {e.response.text}") from e
+                raise TickTickAPIError(
+                    f"Failed to create Speakly project: {e.response.text}"
+                ) from e
 
             except httpx.RequestError as e:
-                raise TickTickAPIError(f"Failed to connect to TickTick: {str(e)}") from e
+                raise TickTickAPIError(
+                    f"Failed to connect to TickTick: {str(e)}"
+                ) from e
 
     async def get_tasks(self, project_id: str | None = None) -> list[dict[str, Any]]:
         """
@@ -294,9 +311,13 @@ class TickTickClient:
                 raise TickTickAPIError(f"Failed to get tasks: {e.response.text}") from e
 
             except httpx.RequestError as e:
-                raise TickTickAPIError(f"Failed to connect to TickTick: {str(e)}") from e
+                raise TickTickAPIError(
+                    f"Failed to connect to TickTick: {str(e)}"
+                ) from e
 
-    async def search_tasks(self, query: str, project_id: str | None = None) -> list[dict[str, Any]]:
+    async def search_tasks(
+        self, query: str, project_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Search for tasks by title/content.
 
@@ -309,25 +330,27 @@ class TickTickClient:
         """
         # Get all tasks (TickTick API doesn't have direct search, so we filter locally)
         tasks = await self.get_tasks(project_id)
-        
+
         query_lower = query.lower()
         matching_tasks = []
-        
+
         for task in tasks:
             # Search in title and content
             title = task.get("title", "").lower()
             content = task.get("content", "").lower()
-            
+
             if query_lower in title or query_lower in content:
                 matching_tasks.append(task)
-        
+
         logger.info(
             f"Found {len(matching_tasks)} tasks matching '{query}'",
         )
-        
+
         return matching_tasks
 
-    async def update_task(self, task_id: str, updates: dict[str, Any], project_id: str = None) -> dict[str, Any]:
+    async def update_task(
+        self, task_id: str, updates: dict[str, Any], project_id: str = None
+    ) -> dict[str, Any]:
         """
         Update an existing task in TickTick.
 
@@ -355,11 +378,7 @@ class TickTickClient:
         }
 
         # Build the complete payload as per TickTick API docs
-        payload = {
-            "id": task_id,
-            "projectId": project_id,
-            **updates
-        }
+        payload = {"id": task_id, "projectId": project_id, **updates}
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
@@ -370,7 +389,7 @@ class TickTickClient:
                     json=payload,
                 )
                 response.raise_for_status()
-                
+
                 # Some update operations return empty response body
                 if response.content:
                     result = response.json()
@@ -380,7 +399,11 @@ class TickTickClient:
 
                 logger.info(
                     f"Updated TickTick task {task_id}",
-                    extra={"user_id": self.user_id, "task_id": task_id, "updates": list(updates.keys())},
+                    extra={
+                        "user_id": self.user_id,
+                        "task_id": task_id,
+                        "updates": list(updates.keys()),
+                    },
                 )
 
                 return result
@@ -390,16 +413,22 @@ class TickTickClient:
                     f"TickTick API error: {e.response.status_code} - {e.response.text}",
                     extra={"user_id": self.user_id},
                 )
-                raise TickTickAPIError(f"Failed to update task: {e.response.text}") from e
+                raise TickTickAPIError(
+                    f"Failed to update task: {e.response.text}"
+                ) from e
 
             except httpx.RequestError as e:
                 logger.error(
                     f"TickTick request error: {str(e)}",
                     extra={"user_id": self.user_id},
                 )
-                raise TickTickAPIError(f"Failed to connect to TickTick: {str(e)}") from e
+                raise TickTickAPIError(
+                    f"Failed to connect to TickTick: {str(e)}"
+                ) from e
 
-    async def complete_task(self, task_id: str, project_id: str = None) -> dict[str, Any]:
+    async def complete_task(
+        self, task_id: str, project_id: str = None
+    ) -> dict[str, Any]:
         """
         Mark a task as completed using the dedicated complete endpoint.
 
@@ -443,16 +472,22 @@ class TickTickClient:
                     extra={"user_id": self.user_id, "task_id": task_id},
                 )
                 if e.response.status_code == 401:
-                    raise TickTickAuthError("Authentication failed - token may be expired") from e
+                    raise TickTickAuthError(
+                        "Authentication failed - token may be expired"
+                    ) from e
                 else:
-                    raise TickTickAPIError(f"Failed to complete task: {e.response.text}") from e
+                    raise TickTickAPIError(
+                        f"Failed to complete task: {e.response.text}"
+                    ) from e
 
             except (httpx.RequestError, httpx.TimeoutException) as e:
                 logger.error(
                     f"TickTick request error: {str(e)}",
                     extra={"user_id": self.user_id, "task_id": task_id},
                 )
-                raise TickTickAPIError(f"Failed to connect to TickTick: {str(e)}") from e
+                raise TickTickAPIError(
+                    f"Failed to connect to TickTick: {str(e)}"
+                ) from e
 
     async def delete_task(self, task_id: str, project_id: str) -> None:
         """
@@ -480,10 +515,14 @@ class TickTickClient:
                     return
 
                 if response.status_code == 401:
-                    raise TickTickAuthError("Authentication failed - token may be expired")
+                    raise TickTickAuthError(
+                        "Authentication failed - token may be expired"
+                    )
 
                 if response.status_code == 404:
-                    logger.warning(f"Task {task_id} not found in TickTick (may already be deleted)")
+                    logger.warning(
+                        f"Task {task_id} not found in TickTick (may already be deleted)"
+                    )
                     return
 
                 raise TickTickAPIError(
@@ -491,7 +530,9 @@ class TickTickClient:
                 )
 
             except httpx.RequestError as e:
-                raise TickTickAPIError(f"Failed to connect to TickTick: {str(e)}") from e
+                raise TickTickAPIError(
+                    f"Failed to connect to TickTick: {str(e)}"
+                ) from e
 
 
 class TickTickOAuth:
@@ -564,14 +605,20 @@ class TickTickOAuth:
                     e.response.status_code,
                     e.response.text,
                 )
-                raise TickTickAuthError(f"Token exchange failed: {e.response.text}") from e
+                raise TickTickAuthError(
+                    f"Token exchange failed: {e.response.text}"
+                ) from e
 
             except httpx.RequestError as e:
                 logger.error("TickTick OAuth request error: %s", str(e))
-                raise TickTickAuthError(f"Failed to connect to TickTick: {str(e)}") from e
+                raise TickTickAuthError(
+                    f"Failed to connect to TickTick: {str(e)}"
+                ) from e
 
     @staticmethod
-    def save_token(db: Session, user: User, token_data: dict[str, Any]) -> TickTickToken:
+    def save_token(
+        db: Session, user: User, token_data: dict[str, Any]
+    ) -> TickTickToken:
         """
         Save or update TickTick token in database.
 
@@ -588,9 +635,9 @@ class TickTickOAuth:
         expires_at = datetime.utcnow() + timedelta(seconds=expires_in_seconds)
 
         # Check if token already exists
-        existing_token = db.query(TickTickToken).filter(
-            TickTickToken.user_id == user.id
-        ).first()
+        existing_token = (
+            db.query(TickTickToken).filter(TickTickToken.user_id == user.id).first()
+        )
 
         if existing_token:
             # Update existing token

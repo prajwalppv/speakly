@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Generator
+from collections.abc import Generator
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -9,9 +9,11 @@ from .config import settings
 
 engine = create_engine(
     settings.database_url,
-    connect_args={"check_same_thread": False}
-    if settings.database_url.startswith("sqlite")
-    else {},
+    connect_args=(
+        {"check_same_thread": False}
+        if settings.database_url.startswith("sqlite")
+        else {}
+    ),
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -40,13 +42,19 @@ def _ensure_session_columns() -> None:
     if "last_error" not in existing:
         statements.append("ALTER TABLE sessions ADD COLUMN last_error TEXT")
     if "last_transcribed_at" not in existing:
-        statements.append("ALTER TABLE sessions ADD COLUMN last_transcribed_at DATETIME")
+        statements.append(
+            "ALTER TABLE sessions ADD COLUMN last_transcribed_at DATETIME"
+        )
     if "has_pj" not in existing:
-        statements.append("ALTER TABLE sessions ADD COLUMN has_pj BOOLEAN NOT NULL DEFAULT 0")
+        statements.append(
+            "ALTER TABLE sessions ADD COLUMN has_pj BOOLEAN NOT NULL DEFAULT 0"
+        )
     if "summary_run_id" not in existing:
         statements.append("ALTER TABLE sessions ADD COLUMN summary_run_id INTEGER")
     if "todo_count" not in existing:
-        statements.append("ALTER TABLE sessions ADD COLUMN todo_count INTEGER NOT NULL DEFAULT 0")
+        statements.append(
+            "ALTER TABLE sessions ADD COLUMN todo_count INTEGER NOT NULL DEFAULT 0"
+        )
 
     if not statements:
         return

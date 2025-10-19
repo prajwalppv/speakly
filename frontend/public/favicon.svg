@@ -5,19 +5,19 @@
       <stop offset="100%" style="stop-color:#d4af37"/>
     </linearGradient>
   </defs>
-  
+
   <!-- Dark background -->
   <rect width="32" height="32" fill="#0a0a0a" rx="6"/>
-  
+
   <!-- Bold sound wave icon -->
   <g fill="url(#g)">
     <!-- Center bar (tallest) -->
     <rect x="14" y="6" width="4" height="20" rx="2"/>
-    
+
     <!-- Left bars -->
     <rect x="9" y="10" width="3" height="12" rx="1.5"/>
     <rect x="4" y="13" width="3" height="6" rx="1.5"/>
-    
+
     <!-- Right bars -->
     <rect x="20" y="10" width="3" height="12" rx="1.5"/>
     <rect x="25" y="13" width="3" height="6" rx="1.5"/>

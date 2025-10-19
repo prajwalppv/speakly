@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import hmac
 import logging
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
@@ -30,7 +29,9 @@ def verify_signature(provided: str | None, payload: bytes) -> bool:
     return hmac.compare_digest(expected, candidate)
 
 
-@router.post("/elevenlabs", name="elevenlabs_webhook", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/elevenlabs", name="elevenlabs_webhook", status_code=status.HTTP_204_NO_CONTENT
+)
 async def elevenlabs_webhook(
     request: Request,
     payload: ElevenLabsWebhookPayload,
@@ -40,7 +41,9 @@ async def elevenlabs_webhook(
     raw_body = await request.body()
     if not verify_signature(signature, raw_body):
         logger.warning("Invalid ElevenLabs webhook signature")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid signature"
+        )
 
     provider_reference = payload.provider_reference
     transcription = None
@@ -72,13 +75,11 @@ async def elevenlabs_webhook(
                 }
             },
         )
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Transcription not found"
+        )
 
-    session = (
-        db.query(SessionModel)
-        .filter_by(id=transcription.session_id)
-        .one()
-    )
+    session = db.query(SessionModel).filter_by(id=transcription.session_id).one()
 
     normalized_status = payload.status.lower()
 
@@ -88,7 +89,11 @@ async def elevenlabs_webhook(
             transcription.provider_job_id or transcription_data.transcription_id
         )
 
-    if transcription_data and transcription_data.words and settings.elevenlabs_diarization_enabled:
+    if (
+        transcription_data
+        and transcription_data.words
+        and settings.elevenlabs_diarization_enabled
+    ):
         try:
             persist_speaker_segments(
                 db,
@@ -105,7 +110,11 @@ async def elevenlabs_webhook(
             )
             transcription.duration_ms = int(last_end * 1000)
 
-    incoming_metadata = payload.metadata or transcription_data.model_dump(exclude_none=True) if transcription_data else {}
+    incoming_metadata = (
+        payload.metadata or transcription_data.model_dump(exclude_none=True)
+        if transcription_data
+        else {}
+    )
     if incoming_metadata:
         existing_metadata = transcription.metadata_payload or {}
         merged_metadata = {**existing_metadata, **incoming_metadata}
@@ -118,14 +127,21 @@ async def elevenlabs_webhook(
         # Set status to 'processing' not 'completed' - LLM tasks still need to run
         session.status = "processing"
         session.last_error = None
-        
+
         # Update processing stages
         from datetime import datetime
+
         if session.processing_stages:
             stages = session.processing_stages.copy()
-            stages["transcribing"] = {"status": "completed", "timestamp": datetime.utcnow().isoformat()}
+            stages["transcribing"] = {
+                "status": "completed",
+                "timestamp": datetime.utcnow().isoformat(),
+            }
             if transcription_data and transcription_data.words:
-                stages["diarizing"] = {"status": "completed", "timestamp": datetime.utcnow().isoformat()}
+                stages["diarizing"] = {
+                    "status": "completed",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
             session.processing_stages = stages
         session.last_transcribed_at = datetime.utcnow()
     elif normalized_status in {"failed", "error"}:
@@ -140,17 +156,18 @@ async def elevenlabs_webhook(
     db.add(transcription)
     db.add(session)
     db.commit()
-    
+
     # Delete audio file after successful transcription (privacy + storage savings)
     if transcription.status == "completed" and session.audio_path:
         from pathlib import Path
+
         try:
             audio_path = Path(session.audio_path)
             if audio_path.exists():
                 audio_path.unlink()
                 logger.info(
                     f"Deleted audio file after transcription: {session.audio_path}",
-                    extra={"extra_data": {"session_id": session.id}}
+                    extra={"extra_data": {"session_id": session.id}},
                 )
                 # Clear the path in database since file is deleted
                 session.audio_path = None
@@ -158,7 +175,9 @@ async def elevenlabs_webhook(
         except Exception as e:
             logger.warning(
                 f"Failed to delete audio file: {e}",
-                extra={"extra_data": {"session_id": session.id, "path": session.audio_path}}
+                extra={
+                    "extra_data": {"session_id": session.id, "path": session.audio_path}
+                },
             )
 
     logger.info(
@@ -173,8 +192,6 @@ async def elevenlabs_webhook(
     )
 
     if transcription.status == "completed":
-        asyncio.create_task(
-            schedule_summary_and_todos(session.id, transcription.id)
-        )
+        asyncio.create_task(schedule_summary_and_todos(session.id, transcription.id))
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -232,11 +232,11 @@ class SttProvider(ABC):
     @abstractmethod
     def is_available(self) -> bool:
         """Check if provider is configured"""
-    
+
     @abstractmethod
     def submit_transcription(...) -> dict:
         """Submit audio for transcription"""
-    
+
     @abstractmethod
     def supports_diarization(self) -> bool:
         """Check if provider supports speaker identification"""

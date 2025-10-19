@@ -3,22 +3,32 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
     PYTHONPATH=/app
 
-WORKDIR /app
+WORKDIR /app/backend
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
-    build-essential \
-    libpq-dev \
-    ffmpeg \
+        build-essential \
+        curl \
+        ffmpeg \
+        libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements-dev.txt /tmp/requirements-dev.txt
-COPY backend/requirements.txt /tmp/requirements.txt
+# Install uv as our package manager
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && mv /root/.local/bin/uv /usr/local/bin/uv \
+    && rm -rf /root/.local
 
-RUN pip install -r /tmp/requirements-dev.txt
+# Pre-install dependencies into a reusable venv
+COPY backend/requirements.txt /tmp/requirements.txt
+COPY backend/requirements-dev.txt /tmp/requirements-dev.txt
+RUN uv venv /opt/venv \
+    && uv pip install --python /opt/venv/bin/python --frozen --require-hashes -r /tmp/requirements-dev.txt \
+    && rm -rf /tmp/requirements*.txt
+
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 COPY backend /app/backend
 

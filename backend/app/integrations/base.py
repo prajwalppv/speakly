@@ -72,9 +72,7 @@ class Integration(ABC):
         pass
 
     @abstractmethod
-    def get_connection_status(
-        self, user_id: int, db: Session
-    ) -> dict[str, Any]:
+    def get_connection_status(self, user_id: int, db: Session) -> dict[str, Any]:
         """Get detailed connection status for a user."""
         pass
 
@@ -132,9 +130,7 @@ class TaskSyncIntegration(Integration, ABC, Generic[T]):
         pass
 
     @abstractmethod
-    async def get_projects(
-        self, user_id: int, db: Session
-    ) -> list[dict[str, Any]]:
+    async def get_projects(self, user_id: int, db: Session) -> list[dict[str, Any]]:
         """
         Get all projects/lists from the external service.
 
@@ -170,9 +166,7 @@ class IntegrationRegistry:
         """Get an integration by name."""
         return self._integrations.get(name)
 
-    def get_by_type(
-        self, integration_type: IntegrationType
-    ) -> list[Integration]:
+    def get_by_type(self, integration_type: IntegrationType) -> list[Integration]:
         """Get all integrations of a specific type."""
         return [
             integration

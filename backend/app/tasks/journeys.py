@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from ..database import SessionLocal
 from ..models import ReportCadence
@@ -29,7 +29,9 @@ def _generate_due_reports_sync() -> None:
                 cadence = ReportCadence.WEEKLY
 
             timezone_name = preference.timezone or "UTC"
-            period_start, period_end = calculate_period_bounds(now, cadence, timezone_name)
+            period_start, period_end = calculate_period_bounds(
+                now, cadence, timezone_name
+            )
 
             if service.has_report_for_period(
                 user_id=preference.user_id,
@@ -37,7 +39,9 @@ def _generate_due_reports_sync() -> None:
                 period_start=period_start,
                 period_end=period_end,
             ):
-                preference.next_scheduled_at = preference.next_scheduled_at or period_end
+                preference.next_scheduled_at = (
+                    preference.next_scheduled_at or period_end
+                )
                 continue
 
             report = service.create_report_placeholder(
@@ -59,7 +63,9 @@ def _generate_due_reports_sync() -> None:
 
 
 async def _journey_scheduler_loop(interval_seconds: int = 900) -> None:
-    logger.info("Journeys scheduler loop started", extra={"interval_seconds": interval_seconds})
+    logger.info(
+        "Journeys scheduler loop started", extra={"interval_seconds": interval_seconds}
+    )
     while True:
         try:
             await asyncio.to_thread(_generate_due_reports_sync)
@@ -74,7 +80,9 @@ def start_journey_scheduler() -> None:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         # No running loop (e.g., during unit tests). Skip scheduler startup.
-        logger.info("Skipping journey scheduler startup: no running event loop available")
+        logger.info(
+            "Skipping journey scheduler startup: no running event loop available"
+        )
         return
 
     if _scheduler_task and not _scheduler_task.done():

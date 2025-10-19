@@ -7,29 +7,29 @@ Comprehensive test suite for Speakly backend with 80%+ coverage.
 ### Run All Tests
 ```bash
 # From backend directory
-pytest
+uv run pytest
 
 # With coverage report
-pytest --cov=app --cov-report=html
+uv run pytest --cov=app --cov-report=html
 ```
 
 ### Run Specific Test Files
 ```bash
-pytest tests/test_audio.py
-pytest tests/test_llm.py
-pytest tests/test_sessions.py
+uv run pytest tests/test_audio.py
+uv run pytest tests/test_llm.py
+uv run pytest tests/test_sessions.py
 ```
 
 ### Run Tests by Marker
 ```bash
 # Run only unit tests
-pytest -m unit
+uv run pytest -m unit
 
 # Skip slow tests
-pytest -m "not slow"
+uv run pytest -m "not slow"
 
 # Run integration tests only
-pytest -m integration
+uv run pytest -m integration
 ```
 
 ### Run with Docker
@@ -116,17 +116,17 @@ Tests run automatically on:
 After running tests with coverage:
 ```bash
 # View in terminal
-pytest --cov=app --cov-report=term-missing
+uv run pytest --cov=app --cov-report=term-missing
 
 # Generate HTML report
-pytest --cov=app --cov-report=html
+uv run pytest --cov=app --cov-report=html
 open htmlcov/index.html
 ```
 
 ## Troubleshooting
 
 ### Tests Failing Locally
-1. Ensure all dependencies installed: `pip install -r requirements-dev.txt`
+1. Ensure all dependencies installed: `uv sync --extra dev`
 2. Check database is clean: Tests use in-memory SQLite
 3. Verify environment variables are not interfering
 

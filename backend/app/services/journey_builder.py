@@ -1,5 +1,4 @@
 from __future__ import annotations
-from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -7,7 +6,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session, selectinload
 
-from ..models import Report, Session as SessionModel, SessionTag, Tag, Todo
+from ..models import Report
+from ..models import Session as SessionModel
+from ..models import SessionTag
 
 
 @dataclass
@@ -96,11 +97,17 @@ class JourneyReportBuilder:
         context_lines.extend(todos_context)
         context_text = "\n".join(context_lines)
 
-        return JourneyBuildResult(payload=payload, metrics=metrics, context_text=context_text)
+        return JourneyBuildResult(
+            payload=payload, metrics=metrics, context_text=context_text
+        )
 
-    def _compute_metrics(self, report: Report, sessions: list[SessionModel], timezone: str) -> JourneyMetrics:
+    def _compute_metrics(
+        self, report: Report, sessions: list[SessionModel], timezone: str
+    ) -> JourneyMetrics:
         session_count = len(sessions)
-        completed_sessions = sum(1 for session in sessions if session.status == "completed")
+        completed_sessions = sum(
+            1 for session in sessions if session.status == "completed"
+        )
 
         total_duration_ms = 0
         for session in sessions:
@@ -119,7 +126,9 @@ class JourneyReportBuilder:
             or (report.period_start <= todo.created_at <= report.period_end)
         ]
         todo_created = len(todos)
-        todo_completed = sum(1 for todo in todos if (todo.status or "").lower() == "completed")
+        todo_completed = sum(
+            1 for todo in todos if (todo.status or "").lower() == "completed"
+        )
 
         tag_counts: dict[str, dict[str, Any]] = {}
         for session in sessions:
@@ -132,7 +141,9 @@ class JourneyReportBuilder:
                     {"name": tag.name, "category": tag.category, "count": 0},
                 )
                 entry["count"] += 1
-        top_tags = sorted(tag_counts.values(), key=lambda item: item["count"], reverse=True)[:5]
+        top_tags = sorted(
+            tag_counts.values(), key=lambda item: item["count"], reverse=True
+        )[:5]
 
         return JourneyMetrics(
             session_count=session_count,
@@ -147,7 +158,9 @@ class JourneyReportBuilder:
             timezone=timezone,
         )
 
-    def _build_session_payload(self, sessions: list[SessionModel]) -> tuple[list[dict[str, Any]], list[str]]:
+    def _build_session_payload(
+        self, sessions: list[SessionModel]
+    ) -> tuple[list[dict[str, Any]], list[str]]:
         items: list[dict[str, Any]] = []
         context_lines: list[str] = []
 
@@ -200,8 +213,12 @@ class JourneyReportBuilder:
             or (report.period_start <= todo.created_at <= report.period_end)
         ]
 
-        completion_count = sum(1 for todo in todos if (todo.status or "").lower() == "completed")
-        open_count = sum(1 for todo in todos if (todo.status or "").lower() != "completed")
+        completion_count = sum(
+            1 for todo in todos if (todo.status or "").lower() == "completed"
+        )
+        open_count = sum(
+            1 for todo in todos if (todo.status or "").lower() != "completed"
+        )
         top_todos = sorted(
             todos,
             key=lambda todo: todo.created_at or report.period_end,
@@ -223,7 +240,7 @@ class JourneyReportBuilder:
             f"{completion_count} marked completed, {open_count} still open.",
         ]
         for entry in todo_entries[:3]:
-            context_lines.append(f"Task \"{entry['title']}\" status {entry['status']}.")
+            context_lines.append(f'Task "{entry["title"]}" status {entry["status"]}.')
 
         payload = {
             "created": len(todos),

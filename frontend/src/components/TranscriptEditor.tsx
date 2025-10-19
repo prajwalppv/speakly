@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Save, X, History, ChevronDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Edit2, Save, X, History, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TranscriptEditorProps {
   transcriptionId: number;
@@ -24,7 +24,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(initialText);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [editHistory, setEditHistory] = useState<any[]>([]);
@@ -42,9 +42,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     try {
       await onSave(text, notes || undefined);
       setIsEditing(false);
-      setNotes('');
+      setNotes("");
     } catch (error) {
-      alert('Failed to save changes. Please try again.');
+      alert("Failed to save changes. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -53,7 +53,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card collapse
     setText(initialText);
-    setNotes('');
+    setNotes("");
     setIsEditing(false);
     if (onCancel) {
       onCancel();
@@ -64,7 +64,9 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
     e.stopPropagation(); // Prevent card collapse
     setLoadingHistory(true);
     try {
-      const response = await fetch(`/api/transcriptions/${transcriptionId}/history`);
+      const response = await fetch(
+        `/api/transcriptions/${transcriptionId}/history`,
+      );
       const data = await response.json();
       setEditHistory(data);
       setShowHistory(true);
@@ -104,7 +106,7 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                 "px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all",
                 hasChanges && !isSaving
                   ? "bg-gradient-green text-black shadow-lg hover:shadow-green/50"
-                  : "bg-black-soft text-bone-dim cursor-not-allowed"
+                  : "bg-black-soft text-bone-dim cursor-not-allowed",
               )}
               onClick={handleSave}
               disabled={!hasChanges || isSaving}
@@ -113,7 +115,14 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
             >
               {isSaving ? (
                 <>
-                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                  >
                     <Save size={16} />
                   </motion.div>
                   Saving...
@@ -140,7 +149,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
         />
 
         <div className="space-y-2">
-          <label htmlFor="edit-notes" className="text-sm font-medium text-bone-dim">
+          <label
+            htmlFor="edit-notes"
+            className="text-sm font-medium text-bone-dim"
+          >
             Notes (optional):
           </label>
           <input
@@ -173,11 +185,16 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
 
   return (
     <div className="space-y-3">
-      {renderActions && renderActions({ handleEdit, loadHistory, loadingHistory })}
-      
+      {renderActions &&
+        renderActions({ handleEdit, loadHistory, loadingHistory })}
+
       <div className="bg-black/30 border border-bone-dim/20 rounded-lg p-4">
         <p className="text-bone text-sm whitespace-pre-wrap">
-          {initialText || <span className="text-bone-dim italic">No transcription available</span>}
+          {initialText || (
+            <span className="text-bone-dim italic">
+              No transcription available
+            </span>
+          )}
         </p>
       </div>
 
@@ -219,7 +236,10 @@ const TranscriptEditor: React.FC<TranscriptEditorProps> = ({
                   {idx < editHistory.length - 1 && (
                     <details className="group">
                       <summary className="text-sm text-blue cursor-pointer hover:text-blue-bright flex items-center gap-1">
-                        <ChevronDown size={14} className="group-open:rotate-180 transition-transform" />
+                        <ChevronDown
+                          size={14}
+                          className="group-open:rotate-180 transition-transform"
+                        />
                         View changes
                       </summary>
                       <div className="mt-2 space-y-2 text-xs">

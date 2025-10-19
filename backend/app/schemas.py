@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .models import ReportCadence, ReportStatus
 
@@ -12,27 +12,29 @@ from .models import ReportCadence, ReportStatus
 # Base model with proper datetime serialization (always UTC with 'Z')
 class UTCBaseModel(BaseModel):
     """Base model that serializes datetime fields with UTC indicator."""
-    
+
     model_config = ConfigDict(
         json_schema_extra={},
-        ser_json_timedelta='iso8601',
+        ser_json_timedelta="iso8601",
     )
-    
+
     def model_dump(self, **kwargs):
         """Override to add 'Z' to datetime fields."""
         data = super().model_dump(**kwargs)
         # Add 'Z' suffix to any datetime strings
         for key, value in data.items():
-            if isinstance(value, str) and 'T' in value and not value.endswith('Z'):
+            if isinstance(value, str) and "T" in value and not value.endswith("Z"):
                 # This is likely an ISO datetime without timezone
-                data[key] = value + 'Z'
+                data[key] = value + "Z"
         return data
 
 
 class APIError(UTCBaseModel):
     type: str = Field(..., description="Short machine-readable error label")
     message: str = Field(..., description="Human-readable description of the error")
-    details: dict | None = Field(default=None, description="Optional additional context")
+    details: dict | None = Field(
+        default=None, description="Optional additional context"
+    )
     debug: dict | None = Field(default=None, description="Developer-only debug payload")
 
 
@@ -75,6 +77,7 @@ class SpeakerSegmentResponse(BaseModel):
 
 class TaskUpdateInfo(BaseModel):
     """Information about a task update from voice note."""
+
     title: str
     status: str
     notes: str | None
@@ -115,6 +118,7 @@ class SummaryResponse(BaseModel):
 
 class TagResponse(UTCBaseModel):
     """Response model for tag."""
+
     id: int
     name: str
     category: str
@@ -122,12 +126,13 @@ class TagResponse(UTCBaseModel):
     auto_generated: bool
     usage_count: int = 0
     created_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class TagCreate(BaseModel):
     """Request model for creating a custom tag."""
+
     name: str = Field(..., min_length=1, max_length=50)
     category: str | None = Field(default="custom")
     color: str | None = None
@@ -153,7 +158,7 @@ class SessionResponse(UTCBaseModel):
     summary: SummaryResponse | None
     todos: list[TodoResponse]
     tags: list[TagResponse] = []
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -233,7 +238,9 @@ class ElevenLabsWebhookPayload(BaseModel):
 
 class ReportPreferenceRequest(BaseModel):
     cadence: ReportCadence = Field(default=ReportCadence.WEEKLY)
-    timezone: str | None = Field(default=None, description="IANA timezone, defaults to UTC")
+    timezone: str | None = Field(
+        default=None, description="IANA timezone, defaults to UTC"
+    )
     delivery_channels: list[str] | None = Field(default=None)
     is_active: bool = Field(default=True)
     email_enabled: bool = Field(default=True)

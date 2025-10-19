@@ -1,13 +1,12 @@
 """Initial schema for Speakly on Postgres.
 
 Revision ID: 001
-Revises: 
+Revises:
 Create Date: 2025-02-05 00:00:00
 """
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "001"
 down_revision = None
@@ -17,8 +16,16 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute(sa.text("CREATE TYPE speakersegment_source AS ENUM ('manual', 'auto')"))
-    op.execute(sa.text("CREATE TYPE llmrun_status AS ENUM ('pending', 'in_progress', 'completed', 'failed')"))
-    op.execute(sa.text("CREATE TYPE todo_status AS ENUM ('pending', 'in_progress', 'completed', 'blocked')"))
+    op.execute(
+        sa.text(
+            "CREATE TYPE llmrun_status AS ENUM ('pending', 'in_progress', 'completed', 'failed')"
+        )
+    )
+    op.execute(
+        sa.text(
+            "CREATE TYPE todo_status AS ENUM ('pending', 'in_progress', 'completed', 'blocked')"
+        )
+    )
 
     op.create_table(
         "users",
@@ -44,7 +51,9 @@ def upgrade() -> None:
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("external_id", sa.String(), nullable=True),
         sa.Column("embedding_path", sa.String(), nullable=True),
-        sa.Column("is_primary", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "is_primary", sa.Boolean(), nullable=False, server_default=sa.text("false")
+        ),
         sa.UniqueConstraint("name"),
         sa.UniqueConstraint("external_id"),
     )
@@ -57,7 +66,12 @@ def upgrade() -> None:
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("category", sa.String(), nullable=False),
         sa.Column("color", sa.String(), nullable=False),
-        sa.Column("auto_generated", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column(
+            "auto_generated",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("true"),
+        ),
         sa.UniqueConstraint("name"),
     )
     op.create_index("ix_tags_id", "tags", ["id"])
@@ -68,12 +82,22 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("access_token", sa.String(), nullable=False),
         sa.Column("refresh_token", sa.String(), nullable=True),
         sa.Column("token_type", sa.String(), nullable=False, server_default="bearer"),
         sa.Column("expires_at", sa.DateTime(), nullable=False),
-        sa.Column("scope", sa.String(), nullable=False, server_default="tasks:write tasks:read"),
+        sa.Column(
+            "scope",
+            sa.String(),
+            nullable=False,
+            server_default="tasks:write tasks:read",
+        ),
         sa.UniqueConstraint("user_id"),
     )
 
@@ -88,7 +112,9 @@ def upgrade() -> None:
         sa.Column("status", sa.String(), nullable=False, server_default="pending"),
         sa.Column("last_error", sa.Text(), nullable=True),
         sa.Column("last_transcribed_at", sa.DateTime(), nullable=True),
-        sa.Column("has_pj", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "has_pj", sa.Boolean(), nullable=False, server_default=sa.text("false")
+        ),
         sa.Column("summary_run_id", sa.Integer(), nullable=True),
         sa.Column("todo_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("processing_stages", sa.JSON(), nullable=True),
@@ -101,7 +127,12 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.Column("session_id", sa.Integer(), sa.ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "session_id",
+            sa.Integer(),
+            sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("provider", sa.String(), nullable=False, server_default="elevenlabs"),
         sa.Column("provider_job_id", sa.String(), nullable=True),
         sa.Column("status", sa.String(), nullable=False, server_default="pending"),
@@ -113,12 +144,19 @@ def upgrade() -> None:
     )
     op.create_index("ix_transcriptions_id", "transcriptions", ["id"])
     op.create_index("ix_transcriptions_session_id", "transcriptions", ["session_id"])
-    op.create_index("ix_transcriptions_provider_job_id", "transcriptions", ["provider_job_id"])
+    op.create_index(
+        "ix_transcriptions_provider_job_id", "transcriptions", ["provider_job_id"]
+    )
 
     op.create_table(
         "transcription_edits",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("transcription_id", sa.Integer(), sa.ForeignKey("transcriptions.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "transcription_id",
+            sa.Integer(),
+            sa.ForeignKey("transcriptions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("previous_text", sa.Text(), nullable=False),
         sa.Column("new_text", sa.Text(), nullable=False),
@@ -128,15 +166,29 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), nullable=False),
     )
     op.create_index("ix_transcription_edits_id", "transcription_edits", ["id"])
-    op.create_index("ix_transcription_edits_transcription_id", "transcription_edits", ["transcription_id"])
+    op.create_index(
+        "ix_transcription_edits_transcription_id",
+        "transcription_edits",
+        ["transcription_id"],
+    )
 
     op.create_table(
         "llm_runs",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.Column("session_id", sa.Integer(), sa.ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("transcription_id", sa.Integer(), sa.ForeignKey("transcriptions.id", ondelete="CASCADE"), nullable=True),
+        sa.Column(
+            "session_id",
+            sa.Integer(),
+            sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "transcription_id",
+            sa.Integer(),
+            sa.ForeignKey("transcriptions.id", ondelete="CASCADE"),
+            nullable=True,
+        ),
         sa.Column("run_type", sa.String(), nullable=False),
         sa.Column("model", sa.String(), nullable=False),
         sa.Column("prompt", sa.Text(), nullable=False),
@@ -153,27 +205,58 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.Column("session_id", sa.Integer(), sa.ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("transcription_id", sa.Integer(), sa.ForeignKey("transcriptions.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "session_id",
+            sa.Integer(),
+            sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "transcription_id",
+            sa.Integer(),
+            sa.ForeignKey("transcriptions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("speaker_label", sa.String(), nullable=True),
-        sa.Column("speaker_profile_id", sa.Integer(), sa.ForeignKey("speaker_profiles.id"), nullable=True),
+        sa.Column(
+            "speaker_profile_id",
+            sa.Integer(),
+            sa.ForeignKey("speaker_profiles.id"),
+            nullable=True,
+        ),
         sa.Column("start_ms", sa.Integer(), nullable=False),
         sa.Column("end_ms", sa.Integer(), nullable=False),
         sa.Column("confidence", sa.Float(), nullable=True),
-        sa.Column("is_pj", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "is_pj", sa.Boolean(), nullable=False, server_default=sa.text("false")
+        ),
         sa.Column("channel_index", sa.Integer(), nullable=True),
         sa.Column("attributes_json", sa.JSON(), nullable=True),
     )
-    op.create_index("ix_speaker_segments_session_id", "speaker_segments", ["session_id"])
-    op.create_index("ix_speaker_segments_transcription_id", "speaker_segments", ["transcription_id"])
+    op.create_index(
+        "ix_speaker_segments_session_id", "speaker_segments", ["session_id"]
+    )
+    op.create_index(
+        "ix_speaker_segments_transcription_id", "speaker_segments", ["transcription_id"]
+    )
 
     op.create_table(
         "todos",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.Column("session_id", sa.Integer(), sa.ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("llm_run_id", sa.Integer(), sa.ForeignKey("llm_runs.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "session_id",
+            sa.Integer(),
+            sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "llm_run_id",
+            sa.Integer(),
+            sa.ForeignKey("llm_runs.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("title", sa.String(), nullable=False),
         sa.Column("due_hint", sa.String(), nullable=True),
         sa.Column("confidence", sa.Float(), nullable=True),
@@ -184,7 +267,12 @@ def upgrade() -> None:
         sa.Column("ticktick_task_id", sa.String(), nullable=True),
         sa.Column("ticktick_project_id", sa.String(), nullable=True),
         sa.Column("ticktick_synced_at", sa.DateTime(), nullable=True),
-        sa.Column("ticktick_sync_status", sa.String(), nullable=False, server_default="pending"),
+        sa.Column(
+            "ticktick_sync_status",
+            sa.String(),
+            nullable=False,
+            server_default="pending",
+        ),
         sa.Column("ticktick_sync_error", sa.Text(), nullable=True),
     )
     op.create_index("ix_todos_session_id", "todos", ["session_id"])
@@ -196,10 +284,25 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.Column("session_id", sa.Integer(), sa.ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("tag_id", sa.Integer(), sa.ForeignKey("tags.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "session_id",
+            sa.Integer(),
+            sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "tag_id",
+            sa.Integer(),
+            sa.ForeignKey("tags.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("confidence", sa.Float(), nullable=False, server_default="1.0"),
-        sa.Column("auto_generated", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column(
+            "auto_generated",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("true"),
+        ),
     )
     op.create_index("ix_session_tags_session_id", "session_tags", ["session_id"])
     op.create_index("ix_session_tags_tag_id", "session_tags", ["tag_id"])
@@ -209,7 +312,12 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("preference_id", sa.Integer(), nullable=True),
         sa.Column("cadence", sa.String(), nullable=False),
         sa.Column("period_start", sa.DateTime(), nullable=False),
@@ -228,11 +336,18 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            sa.Integer(),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("cadence", sa.String(), nullable=False, server_default="weekly"),
         sa.Column("timezone", sa.String(), nullable=False, server_default="UTC"),
         sa.Column("delivery_channels", sa.JSON(), nullable=True),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+        sa.Column(
+            "is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")
+        ),
         sa.Column("last_generated_at", sa.DateTime(), nullable=True),
         sa.Column("next_scheduled_at", sa.DateTime(), nullable=True),
         sa.UniqueConstraint("user_id"),
@@ -258,7 +373,9 @@ def downgrade() -> None:
     op.drop_index("ix_llm_runs_transcription_id", table_name="llm_runs")
     op.drop_index("ix_llm_runs_session_id", table_name="llm_runs")
     op.drop_table("llm_runs")
-    op.drop_index("ix_transcription_edits_transcription_id", table_name="transcription_edits")
+    op.drop_index(
+        "ix_transcription_edits_transcription_id", table_name="transcription_edits"
+    )
     op.drop_index("ix_transcription_edits_id", table_name="transcription_edits")
     op.drop_table("transcription_edits")
     op.drop_index("ix_transcriptions_provider_job_id", table_name="transcriptions")

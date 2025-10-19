@@ -1,6 +1,6 @@
-import { SignIn as ClerkSignIn } from '@clerk/clerk-react';
-import { motion } from 'framer-motion';
-import Logo from './Logo';
+import { SignIn as ClerkSignIn } from "@clerk/clerk-react";
+import { motion } from "framer-motion";
+import Logo from "./Logo";
 
 export default function SignIn() {
   return (
@@ -27,22 +27,25 @@ export default function SignIn() {
 
         {/* Clerk Sign In component with custom styling */}
         <div className="flex justify-center">
-          <ClerkSignIn 
+          <ClerkSignIn
             appearance={{
               elements: {
                 rootBox: "w-full",
                 card: "bg-gradient-to-br from-black-soft to-black border-2 border-gold/30 shadow-2xl",
                 headerTitle: "text-bone font-display text-lg",
                 headerSubtitle: "text-bone",
-                socialButtonsBlockButton: "border-2 border-gold/30 text-bone hover:bg-gold/10",
+                socialButtonsBlockButton:
+                  "border-2 border-gold/30 text-bone hover:bg-gold/10",
                 socialButtonsBlockButtonText: "text-bone",
                 socialButtonsBlockButtonArrow: "text-bone",
                 socialButtonsProviderIcon: "brightness-0 invert",
                 dividerLine: "bg-gold/30",
                 dividerText: "text-bone",
-                formButtonPrimary: "bg-gradient-gold text-black font-semibold hover:shadow-lg hover:shadow-gold/50",
+                formButtonPrimary:
+                  "bg-gradient-gold text-black font-semibold hover:shadow-lg hover:shadow-gold/50",
                 formFieldLabel: "text-bone",
-                formFieldInput: "bg-black border-2 border-gold/20 text-bone focus:border-gold",
+                formFieldInput:
+                  "bg-black border-2 border-gold/20 text-bone focus:border-gold",
                 formFieldInputShowPasswordButton: "text-bone",
                 footerAction: "text-bone",
                 footerActionText: "text-bone",
@@ -63,7 +66,9 @@ export default function SignIn() {
           transition={{ delay: 0.3 }}
           className="text-center space-y-3 pt-6"
         >
-          <p className="text-sm text-bone uppercase tracking-wider font-semibold">Why Speakly?</p>
+          <p className="text-sm text-bone uppercase tracking-wider font-semibold">
+            Why Speakly?
+          </p>
           <div className="grid grid-cols-1 gap-2 text-sm text-bone">
             <div className="flex items-center justify-center gap-2">
               <span className="text-gold text-base">✨</span>

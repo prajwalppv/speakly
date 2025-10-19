@@ -1,9 +1,11 @@
 """
 Test Pydantic schemas and validation.
 """
-import pytest
+
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 from pydantic import ValidationError
 
 
@@ -13,7 +15,7 @@ class TestSessionSchemas:
     def test_session_response_schema(self):
         """Test SessionResponse schema validation."""
         from app.schemas import SessionResponse
-        
+
         data = {
             "id": 1,
             "status": "completed",
@@ -33,9 +35,9 @@ class TestSessionSchemas:
             "speaker_segments": [],
             "summary": None,
             "todos": [],
-            "tags": []
+            "tags": [],
         }
-        
+
         session = SessionResponse(**data)
         assert session.id == 1
         assert session.status == "completed"
@@ -44,7 +46,7 @@ class TestSessionSchemas:
     def test_session_response_with_description(self):
         """Test SessionResponse with optional description."""
         from app.schemas import SessionResponse
-        
+
         data = {
             "id": 1,
             "status": "pending",
@@ -62,9 +64,9 @@ class TestSessionSchemas:
             "speaker_segments": [],
             "summary": None,
             "todos": [],
-            "tags": []
+            "tags": [],
         }
-        
+
         session = SessionResponse(**data)
         assert session.description == "Test meeting"
         assert session.has_pj is True
@@ -77,7 +79,7 @@ class TestTranscriptionSchemas:
     def test_transcription_response_schema(self):
         """Test TranscriptionResponse schema."""
         from app.schemas import TranscriptionResponse
-        
+
         data = {
             "id": 1,
             "status": "completed",
@@ -89,9 +91,9 @@ class TestTranscriptionSchemas:
             "duration_ms": None,
             "channel_count": None,
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
-        
+
         transcription = TranscriptionResponse(**data)
         assert transcription.text == "Test transcript"
         assert transcription.provider == "elevenlabs"
@@ -99,9 +101,9 @@ class TestTranscriptionSchemas:
     def test_transcription_with_metadata(self):
         """Test transcription with metadata payload."""
         from app.schemas import TranscriptionResponse
-        
+
         metadata = {"duration_ms": 30000, "language": "en"}
-        
+
         data = {
             "id": 1,
             "status": "completed",
@@ -113,9 +115,9 @@ class TestTranscriptionSchemas:
             "duration_ms": 30000,
             "channel_count": 2,
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
-        
+
         transcription = TranscriptionResponse(**data)
         assert transcription.metadata["duration_ms"] == 30000
         assert transcription.duration_ms == 30000
@@ -123,7 +125,7 @@ class TestTranscriptionSchemas:
     def test_transcription_with_error(self):
         """Test transcription with error field."""
         from app.schemas import TranscriptionResponse
-        
+
         data = {
             "id": 1,
             "status": "error",
@@ -135,9 +137,9 @@ class TestTranscriptionSchemas:
             "duration_ms": None,
             "channel_count": None,
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
-        
+
         transcription = TranscriptionResponse(**data)
         assert transcription.error == "Connection timeout"
         assert transcription.status == "error"
@@ -149,7 +151,7 @@ class TestAudioUploadSchemas:
     def test_audio_upload_response(self):
         """Test AudioUploadResponse schema."""
         from app.schemas import AudioUploadResponse
-        
+
         data = {
             "status": "received",
             "file_name": "test.mp3",
@@ -159,9 +161,9 @@ class TestAudioUploadSchemas:
             "session_status": "pending",
             "transcription_id": 1,
             "transcription_status": "submitted",
-            "developer_message": None
+            "developer_message": None,
         }
-        
+
         response = AudioUploadResponse(**data)
         assert response.session_id == 1
         assert response.transcription_id == 1
@@ -170,7 +172,7 @@ class TestAudioUploadSchemas:
     def test_audio_upload_response_with_developer_message(self):
         """Test AudioUploadResponse with developer message."""
         from app.schemas import AudioUploadResponse
-        
+
         data = {
             "status": "received",
             "file_name": "test.mp3",
@@ -180,9 +182,9 @@ class TestAudioUploadSchemas:
             "session_status": "pending",
             "transcription_id": 1,
             "transcription_status": "submitted",
-            "developer_message": "Upload successful in dev mode"
+            "developer_message": "Upload successful in dev mode",
         }
-        
+
         response = AudioUploadResponse(**data)
         assert response.developer_message == "Upload successful in dev mode"
 
@@ -193,7 +195,7 @@ class TestTodoSchemas:
     def test_todo_response_schema(self):
         """Test TodoResponse schema."""
         from app.schemas import TodoResponse
-        
+
         data = {
             "id": 1,
             "title": "Test task",
@@ -208,9 +210,9 @@ class TestTodoSchemas:
             "ticktick_synced_at": None,
             "ticktick_sync_error": None,
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
-        
+
         todo = TodoResponse(**data)
         assert todo.title == "Test task"
         assert todo.confidence == 0.95
@@ -219,7 +221,7 @@ class TestTodoSchemas:
     def test_todo_with_due_hint(self):
         """Test todo with due_hint field."""
         from app.schemas import TodoResponse
-        
+
         data = {
             "id": 1,
             "title": "Call tomorrow",
@@ -234,9 +236,9 @@ class TestTodoSchemas:
             "ticktick_synced_at": None,
             "ticktick_sync_error": None,
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
-        
+
         todo = TodoResponse(**data)
         assert todo.due_hint == "tomorrow at 2pm"
         assert todo.source_excerpt == "need to call tomorrow at 2pm"
@@ -244,9 +246,9 @@ class TestTodoSchemas:
     def test_todo_with_ticktick_sync(self):
         """Test todo with TickTick sync fields."""
         from app.schemas import TodoResponse
-        
+
         synced_at = datetime.utcnow()
-        
+
         data = {
             "id": 1,
             "title": "Synced task",
@@ -261,9 +263,9 @@ class TestTodoSchemas:
             "ticktick_synced_at": synced_at,
             "ticktick_sync_error": None,
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
-        
+
         todo = TodoResponse(**data)
         assert todo.ticktick_task_id == "tt-123"
         assert todo.ticktick_sync_status == "synced"
@@ -276,7 +278,7 @@ class TestTagSchemas:
     def test_tag_response_schema(self):
         """Test TagResponse schema."""
         from app.schemas import TagResponse
-        
+
         data = {
             "id": 1,
             "name": "meeting",
@@ -284,9 +286,9 @@ class TestTagSchemas:
             "color": "#3b82f6",
             "auto_generated": False,
             "usage_count": 5,
-            "created_at": datetime.utcnow()
+            "created_at": datetime.utcnow(),
         }
-        
+
         tag = TagResponse(**data)
         assert tag.name == "meeting"
         assert tag.color == "#3b82f6"
@@ -295,7 +297,7 @@ class TestTagSchemas:
     def test_tag_auto_generated_field(self):
         """Test tag with auto_generated field."""
         from app.schemas import TagResponse
-        
+
         data = {
             "id": 1,
             "name": "auto-tag",
@@ -303,22 +305,18 @@ class TestTagSchemas:
             "color": "#ff0000",
             "auto_generated": True,
             "usage_count": 0,
-            "created_at": datetime.utcnow()
+            "created_at": datetime.utcnow(),
         }
-        
+
         tag = TagResponse(**data)
         assert tag.auto_generated is True
 
     def test_tag_create_schema(self):
         """Test TagCreate schema for creating custom tags."""
         from app.schemas import TagCreate
-        
-        tag_data = {
-            "name": "custom-tag",
-            "category": "work",
-            "color": "#00ff00"
-        }
-        
+
+        tag_data = {"name": "custom-tag", "category": "work", "color": "#00ff00"}
+
         tag = TagCreate(**tag_data)
         assert tag.name == "custom-tag"
         assert tag.category == "work"
@@ -330,7 +328,7 @@ class TestSpeakerSchemas:
     def test_speaker_segment_response(self):
         """Test SpeakerSegmentResponse schema."""
         from app.schemas import SpeakerSegmentResponse
-        
+
         data = {
             "id": 1,
             "speaker_label": "Speaker 1",
@@ -339,9 +337,9 @@ class TestSpeakerSchemas:
             "confidence": 0.92,
             "is_pj": True,
             "channel_index": 0,
-            "speaker_profile": "PJ"
+            "speaker_profile": "PJ",
         }
-        
+
         segment = SpeakerSegmentResponse(**data)
         assert segment.speaker_label == "Speaker 1"
         assert segment.is_pj is True
@@ -354,39 +352,30 @@ class TestErrorSchemas:
     def test_api_error_schema(self):
         """Test APIError schema."""
         from app.schemas import APIError
-        
-        error = APIError(
-            type="not_found",
-            message="Resource not found"
-        )
-        
+
+        error = APIError(type="not_found", message="Resource not found")
+
         assert error.type == "not_found"
         assert error.message == "Resource not found"
 
     def test_api_error_with_details(self):
         """Test APIError with optional details."""
         from app.schemas import APIError
-        
+
         details = {"resource_id": 123, "resource_type": "session"}
-        error = APIError(
-            type="not_found",
-            message="Session not found",
-            details=details
-        )
-        
+        error = APIError(type="not_found", message="Session not found", details=details)
+
         assert error.details["resource_id"] == 123
 
     def test_api_error_with_debug_info(self):
         """Test APIError with debug information."""
         from app.schemas import APIError
-        
+
         debug = {"stack_trace": "line 42", "request_id": "abc123"}
         error = APIError(
-            type="internal_error",
-            message="Something went wrong",
-            debug=debug
+            type="internal_error", message="Something went wrong", debug=debug
         )
-        
+
         assert error.debug["request_id"] == "abc123"
 
 
@@ -396,7 +385,7 @@ class TestSchemaValidation:
     def test_invalid_session_missing_required(self):
         """Test that missing required fields raise validation error."""
         from app.schemas import SessionResponse
-        
+
         with pytest.raises(ValidationError):
             # Missing many required fields
             SessionResponse(id=1, status="pending")
@@ -404,7 +393,7 @@ class TestSchemaValidation:
     def test_confidence_range_validation(self):
         """Test that confidence values are within valid range."""
         from app.schemas import TodoResponse
-        
+
         data = {
             "id": 1,
             "title": "Task",
@@ -412,16 +401,16 @@ class TestSchemaValidation:
             "status": "pending",
             "ticktick_sync_status": "pending",
             "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "updated_at": datetime.utcnow(),
         }
-        
+
         todo = TodoResponse(**data)
         assert 0 <= todo.confidence <= 1
 
     def test_datetime_fields_parsing(self):
         """Test that datetime fields parse correctly."""
         from app.schemas import SessionResponse
-        
+
         now = datetime.utcnow()
         data = {
             "id": 1,
@@ -440,9 +429,9 @@ class TestSchemaValidation:
             "speaker_segments": [],
             "summary": None,
             "todos": [],
-            "tags": []
+            "tags": [],
         }
-        
+
         session = SessionResponse(**data)
         assert isinstance(session.created_at, datetime)
         assert isinstance(session.updated_at, datetime)
@@ -451,11 +440,11 @@ class TestSchemaValidation:
     def test_tag_name_validation(self):
         """Test that tag names are validated."""
         from app.schemas import TagCreate
-        
+
         # Valid tag
         tag = TagCreate(name="valid-tag")
         assert tag.name == "valid-tag"
-        
+
         # Invalid: empty name should fail
         with pytest.raises(ValidationError):
             TagCreate(name="")
@@ -463,13 +452,13 @@ class TestSchemaValidation:
     def test_path_field_handling(self):
         """Test that Path fields are handled correctly."""
         from app.schemas import AudioUploadResponse
-        
+
         data = {
             "file_name": "test.mp3",
             "file_path": "/storage/audio/test.mp3",  # String path
             "received_at": datetime.utcnow(),
-            "session_status": "pending"
+            "session_status": "pending",
         }
-        
+
         response = AudioUploadResponse(**data)
         assert isinstance(response.file_path, Path)

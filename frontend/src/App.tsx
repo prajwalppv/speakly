@@ -24,7 +24,7 @@ export default function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [targetSessionId, setTargetSessionId] = useState<number | null>(null);
   const [tokenReady, setTokenReady] = useState(false);
 
@@ -45,7 +45,7 @@ export default function App() {
   // Load sessions for command palette (only when token is ready)
   useEffect(() => {
     if (!isSignedIn || !tokenReady) return; // Skip if not signed in or token not ready
-    
+
     const loadSessions = async () => {
       try {
         const data = await fetchSessions();
@@ -60,16 +60,16 @@ export default function App() {
   // Keyboard shortcut for command palette
   useEffect(() => {
     if (!isSignedIn) return; // Skip if not signed in
-    
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setCommandPaletteOpen(true);
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isSignedIn]);
 
   // Show loading or sign-in AFTER all hooks
@@ -120,130 +120,133 @@ export default function App() {
 
               {/* Tab Navigation & User */}
               <div className="flex items-center gap-4">
-              <nav className="flex gap-2 bg-black-soft/50 p-1 rounded-lg border border-gold/20">
-                <motion.button
-                  onClick={() => setActiveTab("upload")}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
-                    activeTab === "upload"
-                      ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
-                      : "text-bone-dim hover:text-bone hover:bg-black-soft"
-                  )}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  aria-label="Upload Audio"
-                >
-                  <FolderOpen size={18} />
-                  <span>My Audio</span>
-                </motion.button>
-                <motion.button
-                  onClick={() => setActiveTab("journeys")}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
-                    activeTab === "journeys"
-                      ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
-                      : "text-bone-dim hover:text-bone hover:bg-black-soft"
-                  )}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  aria-label="Journeys"
-                >
-                  <Compass size={18} />
-                  <span>Journeys</span>
-                </motion.button>
-                <motion.button
-                  onClick={() => setActiveTab("settings")}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
-                    activeTab === "settings"
-                      ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
-                      : "text-bone-dim hover:text-bone hover:bg-black-soft"
-                  )}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  aria-label="Integrations & Settings"
-                >
-                  <Link2 size={18} />
-                  <span>Integrations</span>
-                </motion.button>
-              </nav>
-              
-              {/* User Button */}
-              <UserButton
-                afterSignOutUrl="/"
-                appearance={{
-                  elements: {
-                    avatarBox: "w-10 h-10 border-2 border-gold/30 hover:border-gold",
-                    userButtonPopoverCard: "bg-gradient-to-br from-black-soft to-black border-2 border-gold/30",
-                    userButtonPopoverActionButton: "text-bone hover:bg-gold/10",
-                    userButtonPopoverActionButtonText: "text-bone",
-                    userButtonPopoverActionButtonIcon: "brightness-0 invert",
-                    userButtonPopoverFooter: "hidden",
-                    userPreviewMainIdentifier: "text-bone font-semibold",
-                    userPreviewSecondaryIdentifier: "text-bone-dim",
-                  },
-                }}
-              />
+                <nav className="flex gap-2 bg-black-soft/50 p-1 rounded-lg border border-gold/20">
+                  <motion.button
+                    onClick={() => setActiveTab("upload")}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
+                      activeTab === "upload"
+                        ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
+                        : "text-bone-dim hover:text-bone hover:bg-black-soft",
+                    )}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    aria-label="Upload Audio"
+                  >
+                    <FolderOpen size={18} />
+                    <span>My Audio</span>
+                  </motion.button>
+                  <motion.button
+                    onClick={() => setActiveTab("journeys")}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
+                      activeTab === "journeys"
+                        ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
+                        : "text-bone-dim hover:text-bone hover:bg-black-soft",
+                    )}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    aria-label="Journeys"
+                  >
+                    <Compass size={18} />
+                    <span>Journeys</span>
+                  </motion.button>
+                  <motion.button
+                    onClick={() => setActiveTab("settings")}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
+                      activeTab === "settings"
+                        ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
+                        : "text-bone-dim hover:text-bone hover:bg-black-soft",
+                    )}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    aria-label="Integrations & Settings"
+                  >
+                    <Link2 size={18} />
+                    <span>Integrations</span>
+                  </motion.button>
+                </nav>
+
+                {/* User Button */}
+                <UserButton
+                  afterSignOutUrl="/"
+                  appearance={{
+                    elements: {
+                      avatarBox:
+                        "w-10 h-10 border-2 border-gold/30 hover:border-gold",
+                      userButtonPopoverCard:
+                        "bg-gradient-to-br from-black-soft to-black border-2 border-gold/30",
+                      userButtonPopoverActionButton:
+                        "text-bone hover:bg-gold/10",
+                      userButtonPopoverActionButtonText: "text-bone",
+                      userButtonPopoverActionButtonIcon: "brightness-0 invert",
+                      userButtonPopoverFooter: "hidden",
+                      userPreviewMainIdentifier: "text-bone font-semibold",
+                      userPreviewSecondaryIdentifier: "text-bone-dim",
+                    },
+                  }}
+                />
               </div>
             </div>
           </div>
         </motion.header>
-      
+
         {/* Main Content */}
         <main className="min-h-[calc(100vh-80px)]">
-        {activeTab === "upload" && (
-          <>
-            <div className="w-full max-w-7xl mx-auto px-4 pt-6">
-              <RecordingPreferences />
-            </div>
-            <BulkUploader 
-              onUploadComplete={() => setRefreshTrigger(prev => prev + 1)} 
-            />
-            <SessionsList 
-              refreshTrigger={refreshTrigger}
-              searchQuery={searchQuery}
-              targetSessionId={targetSessionId}
-              onSearchApplied={() => {
-                setSearchQuery('');
-                setTargetSessionId(null);
-              }}
-            />
-          </>
-        )}
-        {activeTab === "settings" && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="max-w-4xl mx-auto px-4 py-6"
-          >
-            <TickTickConnect />
-          </motion.div>
-        )}
-        {activeTab === "journeys" && <JourneysView />}
-      </main>
+          {activeTab === "upload" && (
+            <>
+              <div className="w-full max-w-7xl mx-auto px-4 pt-6">
+                <RecordingPreferences />
+              </div>
+              <BulkUploader
+                onUploadComplete={() => setRefreshTrigger((prev) => prev + 1)}
+              />
+              <SessionsList
+                refreshTrigger={refreshTrigger}
+                searchQuery={searchQuery}
+                targetSessionId={targetSessionId}
+                onSearchApplied={() => {
+                  setSearchQuery("");
+                  setTargetSessionId(null);
+                }}
+              />
+            </>
+          )}
+          {activeTab === "settings" && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-4xl mx-auto px-4 py-6"
+            >
+              <TickTickConnect />
+            </motion.div>
+          )}
+          {activeTab === "journeys" && <JourneysView />}
+        </main>
 
-      {/* Command Palette */}
-      <CommandPalette
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        sessions={sessions}
-        onUpload={() => {
-          setActiveTab('upload');
-          // Just navigate to upload tab - user can click the upload area
-        }}
-        onNavigateToSession={(sessionId) => {
-          setActiveTab('upload');
-          setTargetSessionId(sessionId);
-        }}
-        onOpenSettings={() => {
-          setActiveTab('settings');
-        }}
-        onSearch={(query) => {
-          setActiveTab('upload');
-          setSearchQuery(query);
-        }}
-      />
-    </div>
+        {/* Command Palette */}
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          sessions={sessions}
+          onUpload={() => {
+            setActiveTab("upload");
+            // Just navigate to upload tab - user can click the upload area
+          }}
+          onNavigateToSession={(sessionId) => {
+            setActiveTab("upload");
+            setTargetSessionId(sessionId);
+          }}
+          onOpenSettings={() => {
+            setActiveTab("settings");
+          }}
+          onSearch={(query) => {
+            setActiveTab("upload");
+            setSearchQuery(query);
+          }}
+        />
+      </div>
     </ErrorBoundary>
   );
 }

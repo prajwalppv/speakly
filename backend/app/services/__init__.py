@@ -6,14 +6,6 @@ from .elevenlabs import (
     ElevenLabsNotConfiguredError,
     get_elevenlabs_client,
 )
-from .stt import (
-    SttService,
-    SttError,
-    SttNotConfiguredError,
-    get_stt_service,
-)
-from .llm import LlmService, LlmError, LlmTask, schedule_summary_and_todos
-from .speakers import ensure_pj_profile, persist_speaker_segments
 from .journeys import (
     JourneyReportService,
     ReportCadence,
@@ -21,6 +13,9 @@ from .journeys import (
     calculate_period_bounds,
     get_journey_service,
 )
+from .llm import LlmError, LlmService, LlmTask, schedule_summary_and_todos
+from .speakers import ensure_pj_profile, persist_speaker_segments
+from .stt import SttError, SttNotConfiguredError, SttService, get_stt_service
 
 __all__ = [
     # Legacy ElevenLabs client (kept for backward compatibility)

@@ -83,9 +83,9 @@ interface TickTickProject {
     🎙️ Speakly
     Voice-to-Task Intelligence
   </app-header>
-  
+
   <TickTickConnect />
-  
+
   <AudioUploader />
 </app-container>
 ```
@@ -167,14 +167,14 @@ graph TD
     A[Open Speakly] --> B{TickTick Connected?}
     B -->|No| C[Show Connect Button]
     B -->|Yes| D[Show Connection Details]
-    
+
     C --> E[Click Connect]
     E --> F[Redirect to TickTick OAuth]
     F --> G[User Authorizes]
     G --> H[Redirect to Callback]
     H --> I[Token Stored]
     I --> D
-    
+
     D --> J[Click Disconnect]
     J --> K[Confirmation Dialog]
     K -->|Yes| L[Token Removed]

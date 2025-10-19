@@ -1,8 +1,8 @@
 """
 Test sessions API endpoints.
 """
-import pytest
-from app.models import Session, Transcription, LlmRun, Todo
+
+from app.models import LlmRun, Session, Todo, Transcription
 
 
 class TestSessionsAPI:
@@ -12,7 +12,7 @@ class TestSessionsAPI:
         """Test getting sessions returns empty list when none exist."""
         # The default user exists, but no sessions yet
         response = client.get("/api/sessions")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
@@ -25,9 +25,9 @@ class TestSessionsAPI:
         session2 = Session(user_id=1, audio_path="/path/audio2.mp3", status="pending")
         test_db.add_all([session1, session2])
         test_db.commit()
-        
+
         response = client.get("/api/sessions")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -42,17 +42,15 @@ class TestSessionsAPI:
         session = Session(user_id=1, audio_path="/path/test.mp3", status="completed")
         test_db.add(session)
         test_db.commit()
-        
+
         transcription = Transcription(
-            session_id=session.id,
-            text="Test transcript text",
-            status="completed"
+            session_id=session.id, text="Test transcript text", status="completed"
         )
         test_db.add(transcription)
         test_db.commit()
-        
+
         response = client.get("/api/sessions")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -66,13 +64,13 @@ class TestSessionsAPI:
             user_id=1,
             audio_path="/path/test.mp3",
             status="completed",
-            description="Test description"
+            description="Test description",
         )
         test_db.add(session)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == session.id
@@ -83,7 +81,7 @@ class TestSessionsAPI:
     def test_get_session_by_id_not_found(self, client, test_db):
         """Test getting non-existent session returns 404."""
         response = client.get("/api/sessions/99999")
-        
+
         assert response.status_code == 404
 
     def test_get_session_includes_summary(self, client, test_db):
@@ -91,7 +89,7 @@ class TestSessionsAPI:
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         # Create LLM run for summary
         llm_run = LlmRun(
             session_id=session.id,
@@ -99,17 +97,17 @@ class TestSessionsAPI:
             model="gpt-4",
             prompt="Summarize this",
             response="This is a summary",
-            status="completed"
+            status="completed",
         )
         test_db.add(llm_run)
         test_db.commit()
-        
+
         # Link summary to session
         session.summary_run_id = llm_run.id
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "summary" in data or "summary_run" in data
@@ -119,24 +117,20 @@ class TestSessionsAPI:
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         # First attempt failed
         trans1 = Transcription(
-            session_id=session.id,
-            status="error",
-            error="Connection timeout"
+            session_id=session.id, status="error", error="Connection timeout"
         )
         # Second attempt succeeded
         trans2 = Transcription(
-            session_id=session.id,
-            text="Success transcript",
-            status="completed"
+            session_id=session.id, text="Success transcript", status="completed"
         )
         test_db.add_all([trans1, trans2])
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data["transcriptions"]) == 2
@@ -150,9 +144,9 @@ class TestSessionMetrics:
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         # Should have todo_count field
@@ -163,17 +157,17 @@ class TestSessionMetrics:
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         transcription = Transcription(
             session_id=session.id,
             metadata_payload={"duration_ms": 45000},
-            status="completed"
+            status="completed",
         )
         test_db.add(transcription)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         # Check if duration is accessible
@@ -189,12 +183,14 @@ class TestSessionFilters:
     def test_filter_sessions_by_has_pj_true(self, client, test_db):
         """Test filtering sessions by has_pj=true."""
         session_with_pj = Session(user_id=1, audio_path="/path/pj.mp3", has_pj=True)
-        session_without_pj = Session(user_id=1, audio_path="/path/other.mp3", has_pj=False)
+        session_without_pj = Session(
+            user_id=1, audio_path="/path/other.mp3", has_pj=False
+        )
         test_db.add_all([session_with_pj, session_without_pj])
         test_db.commit()
-        
+
         response = client.get("/api/sessions?has_pj=true")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -203,12 +199,14 @@ class TestSessionFilters:
     def test_filter_sessions_by_has_pj_false(self, client, test_db):
         """Test filtering sessions by has_pj=false."""
         session_with_pj = Session(user_id=1, audio_path="/path/pj.mp3", has_pj=True)
-        session_without_pj = Session(user_id=1, audio_path="/path/other.mp3", has_pj=False)
+        session_without_pj = Session(
+            user_id=1, audio_path="/path/other.mp3", has_pj=False
+        )
         test_db.add_all([session_with_pj, session_without_pj])
         test_db.commit()
-        
+
         response = client.get("/api/sessions?has_pj=false")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -220,14 +218,20 @@ class TestSessionFilters:
         session2 = Session(user_id=1, audio_path="/path/2.mp3")
         test_db.add_all([session1, session2])
         test_db.commit()
-        
-        trans1 = Transcription(session_id=session1.id, text="Meeting about project planning", status="completed")
-        trans2 = Transcription(session_id=session2.id, text="Quick standup update", status="completed")
+
+        trans1 = Transcription(
+            session_id=session1.id,
+            text="Meeting about project planning",
+            status="completed",
+        )
+        trans2 = Transcription(
+            session_id=session2.id, text="Quick standup update", status="completed"
+        )
         test_db.add_all([trans1, trans2])
         test_db.commit()
-        
+
         response = client.get("/api/sessions?q=planning")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -236,23 +240,23 @@ class TestSessionFilters:
     def test_filter_sessions_by_date_range(self, client, test_db):
         """Test filtering sessions by date range."""
         from datetime import datetime, timedelta
-        
+
         old_session = Session(user_id=1, audio_path="/path/old.mp3")
         test_db.add(old_session)
         test_db.commit()
-        
+
         # Manually set created_at to past date
         old_session.created_at = datetime.utcnow() - timedelta(days=10)
         test_db.commit()
-        
+
         new_session = Session(user_id=1, audio_path="/path/new.mp3")
         test_db.add(new_session)
         test_db.commit()
-        
+
         # Filter for sessions from last 5 days
         from_date = (datetime.utcnow() - timedelta(days=5)).isoformat()
         response = client.get(f"/api/sessions?from={from_date}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -270,9 +274,18 @@ class TestSessionReviewFlow:
             review_status="pending",
             processing_stages={
                 "uploaded": {"status": "completed", "timestamp": "2025-01-01T00:00:00"},
-                "transcribing": {"status": "completed", "timestamp": "2025-01-01T00:01:00"},
-                "summarizing": {"status": "completed", "timestamp": "2025-01-01T00:02:00"},
-                "extracting_tasks": {"status": "completed", "timestamp": "2025-01-01T00:03:00"},
+                "transcribing": {
+                    "status": "completed",
+                    "timestamp": "2025-01-01T00:01:00",
+                },
+                "summarizing": {
+                    "status": "completed",
+                    "timestamp": "2025-01-01T00:02:00",
+                },
+                "extracting_tasks": {
+                    "status": "completed",
+                    "timestamp": "2025-01-01T00:03:00",
+                },
                 "tagging": {"status": "completed", "timestamp": "2025-01-01T00:04:00"},
                 "review": {"status": "in_progress", "timestamp": None},
                 "syncing_tasks": {"status": "pending", "timestamp": None},
@@ -309,9 +322,7 @@ class TestSessionReviewFlow:
             called["session_id"] = session_id
             called["task_updates"] = task_updates
 
-        monkeypatch.setattr(
-            "app.routers.sessions.schedule_task_sync", fake_schedule
-        )
+        monkeypatch.setattr("app.routers.sessions.schedule_task_sync", fake_schedule)
 
         response = client.post(f"/api/sessions/{session.id}/approve")
 
@@ -334,9 +345,18 @@ class TestSessionReviewFlow:
             todo_count=1,
             processing_stages={
                 "uploaded": {"status": "completed", "timestamp": "2025-01-01T00:00:00"},
-                "transcribing": {"status": "completed", "timestamp": "2025-01-01T00:01:00"},
-                "summarizing": {"status": "completed", "timestamp": "2025-01-01T00:02:00"},
-                "extracting_tasks": {"status": "completed", "timestamp": "2025-01-01T00:03:00"},
+                "transcribing": {
+                    "status": "completed",
+                    "timestamp": "2025-01-01T00:01:00",
+                },
+                "summarizing": {
+                    "status": "completed",
+                    "timestamp": "2025-01-01T00:02:00",
+                },
+                "extracting_tasks": {
+                    "status": "completed",
+                    "timestamp": "2025-01-01T00:03:00",
+                },
                 "tagging": {"status": "completed", "timestamp": "2025-01-01T00:04:00"},
                 "review": {"status": "in_progress", "timestamp": None},
                 "syncing_tasks": {"status": "pending", "timestamp": None},
@@ -436,35 +456,35 @@ class TestSessionSerialization:
 
     def test_serialize_session_with_todos(self, client, test_db):
         """Test session serialization includes todos."""
-        from app.models import Todo, LlmRun
-        
+        from app.models import LlmRun, Todo
+
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         llm_run = LlmRun(
             session_id=session.id,
             run_type="todos",
             model="llama3",
             prompt="Extract tasks",
             response="[]",
-            status="completed"
+            status="completed",
         )
         test_db.add(llm_run)
         test_db.commit()
-        
+
         todo = Todo(
             session_id=session.id,
             llm_run_id=llm_run.id,
             title="Test task",
             confidence=0.95,
-            status="pending"
+            status="pending",
         )
         test_db.add(todo)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "todos" in data
@@ -473,22 +493,22 @@ class TestSessionSerialization:
 
     def test_serialize_session_with_tags(self, client, test_db):
         """Test session serialization includes tags."""
-        from app.models import Tag, SessionTag
-        
+        from app.models import SessionTag, Tag
+
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         tag = Tag(name="meeting", category="type", color="#3b82f6", auto_generated=True)
         test_db.add(tag)
         test_db.commit()
-        
+
         session_tag = SessionTag(session_id=session.id, tag_id=tag.id)
         test_db.add(session_tag)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "tags" in data
@@ -498,28 +518,28 @@ class TestSessionSerialization:
     def test_serialize_session_with_speaker_segments(self, client, test_db):
         """Test session serialization includes speaker segments."""
         from app.models import SpeakerSegment, Transcription
-        
+
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         transcription = Transcription(session_id=session.id, status="completed")
         test_db.add(transcription)
         test_db.commit()
-        
+
         segment = SpeakerSegment(
             session_id=session.id,
             transcription_id=transcription.id,
             speaker_label="SPEAKER_00",
             start_ms=0,
             end_ms=5000,
-            confidence=0.9
+            confidence=0.9,
         )
         test_db.add(segment)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "speaker_segments" in data
@@ -531,7 +551,7 @@ class TestSessionSerialization:
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         transcription = Transcription(
             session_id=session.id,
             text="Test",
@@ -540,13 +560,13 @@ class TestSessionSerialization:
             provider_job_id="job-123",
             duration_ms=30000,
             channel_count=1,
-            metadata_payload={"custom": "data"}
+            metadata_payload={"custom": "data"},
         )
         test_db.add(transcription)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         trans = data["transcriptions"][0]
@@ -559,31 +579,33 @@ class TestSessionSerialization:
     def test_serialize_summary_from_llm_run(self, client, test_db):
         """Test summary serialization from LlmRun."""
         from app.models import LlmRun, Transcription
-        
+
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
-        transcription = Transcription(session_id=session.id, text="Test transcript", status="completed")
+
+        transcription = Transcription(
+            session_id=session.id, text="Test transcript", status="completed"
+        )
         test_db.add(transcription)
         test_db.commit()
-        
+
         llm_run = LlmRun(
             session_id=session.id,
             run_type="summary",
             model="llama3",
             prompt="Summarize: Test transcript",
             response="Summary text",
-            status="completed"
+            status="completed",
         )
         test_db.add(llm_run)
         test_db.commit()
-        
+
         session.summary_run_id = llm_run.id
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["summary"] is not None
@@ -595,13 +617,13 @@ class TestSessionSerialization:
         session = Session(
             user_id=1,
             audio_path="/path/test.mp3",
-            processing_stages={"transcribing": {"status": "completed"}}
+            processing_stages={"transcribing": {"status": "completed"}},
         )
         test_db.add(session)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "processing_stages" in data
@@ -610,11 +632,11 @@ class TestSessionSerialization:
     def test_session_task_updates_count(self, client, test_db):
         """Test session includes task updates count from LLM metadata."""
         from app.models import LlmRun
-        
+
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         llm_run = LlmRun(
             session_id=session.id,
             run_type="summary",
@@ -622,16 +644,16 @@ class TestSessionSerialization:
             prompt="Summarize",
             response="Summary",
             status="completed",
-            metadata_payload={"task_updates": [{"task": "Task 1"}, {"task": "Task 2"}]}
+            metadata_payload={"task_updates": [{"task": "Task 1"}, {"task": "Task 2"}]},
         )
         test_db.add(llm_run)
         test_db.commit()
-        
+
         session.summary_run_id = llm_run.id
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert "task_updates_count" in data
@@ -646,9 +668,9 @@ class TestSessionEdgeCases:
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["transcriptions"] == []
@@ -658,9 +680,9 @@ class TestSessionEdgeCases:
         session = Session(user_id=1, audio_path="/path/test.mp3")
         test_db.add(session)
         test_db.commit()
-        
+
         response = client.get(f"/api/sessions/{session.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["summary"] is None
@@ -670,9 +692,9 @@ class TestSessionEdgeCases:
         sessions = [Session(user_id=1, audio_path=f"/path/{i}.mp3") for i in range(3)]
         test_db.add_all(sessions)
         test_db.commit()
-        
+
         response = client.get("/api/sessions")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 3

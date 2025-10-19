@@ -177,10 +177,18 @@ See [.env.example](.env.example) for all required variables.
 # Backend tests
 docker compose run --rm --profile test backend-tests
 
-# Or use pytest directly
+# Or run locally with uv (after `uv sync --extra dev`)
 cd backend
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
+
+## ✅ Pre-commit Hooks
+
+- Install tooling once: install [uv](https://docs.astral.sh/uv/getting-started/install/) then run `uv sync --extra dev` inside `backend/`; run `npm install` inside `frontend/`.
+- Register the git hooks: `uv run pre-commit install` and `uv run pre-commit install --hook-type pre-push`.
+- Run `uv run pre-commit run --all-files` before opening a PR to bootstrap the hook environments.
+- On commit the hooks format Python (isort + Black) and frontend assets (Prettier), upgrade syntax, and type-check the React code while Ruff handles linting; mypy runs to catch type issues with auto-installed stubs.
+- On push the backend test suite executes via `pytest` to catch regressions before CI.
 
 ---
 

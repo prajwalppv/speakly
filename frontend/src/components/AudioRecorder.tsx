@@ -52,7 +52,8 @@ export default function AudioRecorder({
       return false;
     }
     const hasMediaDevices =
-      !!navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function";
+      !!navigator.mediaDevices &&
+      typeof navigator.mediaDevices.getUserMedia === "function";
     return hasMediaDevices && typeof MediaRecorder !== "undefined";
   }, []);
 
@@ -149,7 +150,8 @@ export default function AudioRecorder({
         : new MediaRecorder(stream);
 
       mediaRecorderRef.current = recorder;
-      const effectiveMimeType = recorder.mimeType || selectedMimeType || "audio/webm";
+      const effectiveMimeType =
+        recorder.mimeType || selectedMimeType || "audio/webm";
       setActiveMimeType(effectiveMimeType);
       chunksRef.current = [];
 
@@ -179,14 +181,19 @@ export default function AudioRecorder({
       cleanupStream();
       stopTimer();
       const message =
-        err instanceof Error ? err.message : "We couldn't access the microphone.";
+        err instanceof Error
+          ? err.message
+          : "We couldn't access the microphone.";
       setError(message);
       setStatus("idle");
     }
   }, [cleanupStream, setPreview, startTimer, stopTimer, supportsRecording]);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state === "recording"
+    ) {
       mediaRecorderRef.current.stop();
     }
   }, []);
@@ -255,22 +262,26 @@ export default function AudioRecorder({
                     : "border-gold/60 bg-gold/10 text-gold",
                 )}
               >
-                {status === "recording" ? <Square size={22} /> : <Mic2 size={24} />}
+                {status === "recording" ? (
+                  <Square size={22} />
+                ) : (
+                  <Mic2 size={24} />
+                )}
               </div>
               <div>
                 <p className="text-sm font-medium text-bone">
                   {status === "recording"
                     ? "Recording in progress"
                     : status === "recorded"
-                    ? "Recording ready"
-                    : "Ready to capture"}
+                      ? "Recording ready"
+                      : "Ready to capture"}
                 </p>
                 <p className="text-xs text-bone-dim">
                   {status === "recording"
                     ? "Speak naturally—we’re capturing every word."
                     : status === "recorded"
-                    ? "Preview your clip or record again."
-                    : "Your mic stays private and secure."}
+                      ? "Preview your clip or record again."
+                      : "Your mic stays private and secure."}
                 </p>
               </div>
             </div>
@@ -316,9 +327,13 @@ export default function AudioRecorder({
           <div className="flex flex-wrap items-center justify-between gap-3 border border-gold/10 rounded-lg px-4 py-3 bg-black/40">
             <div className="flex items-center gap-2 text-sm text-bone-dim">
               <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-              <span>{status === "recording" ? "Listening..." : "Standing by"}</span>
+              <span>
+                {status === "recording" ? "Listening..." : "Standing by"}
+              </span>
             </div>
-            <div className="text-sm font-mono text-bone">{formatSeconds(elapsedSeconds)}</div>
+            <div className="text-sm font-mono text-bone">
+              {formatSeconds(elapsedSeconds)}
+            </div>
             <div className="text-xs uppercase tracking-wide text-bone-dim">
               {activeMimeType.replace("audio/", "")}
             </div>
@@ -335,7 +350,9 @@ export default function AudioRecorder({
               >
                 <div className="flex items-center gap-2 text-bone">
                   <CheckCircle2 size={18} className="text-green" />
-                  <span className="text-sm font-medium">Preview your voice note</span>
+                  <span className="text-sm font-medium">
+                    Preview your voice note
+                  </span>
                 </div>
                 <audio controls src={previewUrl} className="w-full" />
                 <div className="flex flex-wrap gap-3">

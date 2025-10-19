@@ -109,15 +109,15 @@ ERROR: Groq API request failed after 5 attempts
 # Test with minimal concurrency
 SPEAKLY_DEVELOPER_MODE=true \
 SPEAKLY_LLM_MAX_CONCURRENT_REQUESTS=1 \
-python -m uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 ## Installation
 
-Dependencies are already included in `requirements.txt`:
+Dependencies are already included in `pyproject.toml`:
 
 ```bash
-pip install -r requirements.txt
+uv sync --extra dev
 ```
 
 The key dependency is:
@@ -129,15 +129,15 @@ Run the rate limiting tests:
 
 ```bash
 # Run all rate limiting tests
-pytest tests/test_llm_rate_limiting.py -v
+uv run pytest tests/test_llm_rate_limiting.py -v
 
 # Run specific test
-pytest tests/test_llm_rate_limiting.py::TestGroqProviderRetry::test_retry_on_429_rate_limit -v
+uv run pytest tests/test_llm_rate_limiting.py::TestGroqProviderRetry::test_retry_on_429_rate_limit -v
 ```
 
 All 11 tests should pass, covering:
 - ✅ Retry on 429 rate limit errors
-- ✅ Retry on 5xx server errors  
+- ✅ Retry on 5xx server errors
 - ✅ Retry on timeout/network errors
 - ✅ No retry on auth errors (401)
 - ✅ Semaphore-based concurrency limiting

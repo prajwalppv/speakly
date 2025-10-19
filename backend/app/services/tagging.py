@@ -1,24 +1,25 @@
 """Service for extracting and managing tags for sessions."""
+
 import json
 import logging
-from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any
 
 from sqlalchemy.orm import Session
 
-from ..models import Session as SessionModel, Tag, SessionTag
 from ..config import settings
+from ..models import Session as SessionModel
+from ..models import SessionTag, Tag
 
 logger = logging.getLogger(__name__)
 
 # Tag category colors for UI
 TAG_COLORS = {
-    "type": "#3b82f6",      # Blue - meeting types
-    "topic": "#8b5cf6",     # Purple - topics/themes
-    "person": "#10b981",    # Green - people
-    "entity": "#f59e0b",    # Amber - projects/clients/features
+    "type": "#3b82f6",  # Blue - meeting types
+    "topic": "#8b5cf6",  # Purple - topics/themes
+    "person": "#10b981",  # Green - people
+    "entity": "#f59e0b",  # Amber - projects/clients/features
     "priority": "#ef4444",  # Red - priority/urgency
-    "custom": "#d4af37",    # Gold - user-added
+    "custom": "#d4af37",  # Gold - user-added
 }
 
 TAGGING_PROMPT = """Analyze this recording to extract the MOST INFORMATIVE tags that help mentally map and recall this content.
@@ -71,93 +72,95 @@ JSON:"""
 
 class TaggingService:
     """Service for extracting and managing session tags."""
-    
-    def extract_tags(self, session: SessionModel) -> List[Dict[str, Any]]:
+
+    def extract_tags(self, session: SessionModel) -> list[dict[str, Any]]:
         """
         Extract tags from session transcript and summary using LLM.
-        
+
         Args:
             session: Session model instance
-            
+
         Returns:
             List of tag dicts with name, category, and confidence
         """
         if not session.transcriptions or not session.transcriptions[0].text:
             logger.warning(f"No transcription found for session {session.id}")
             return []
-        
+
         transcript = session.transcriptions[0].text[:3000]  # Limit length
         summary = session.summary_run.response if session.summary_run else ""
-        
+
         # Generate tags using LLM
         ai_tags = self._generate_tags_with_llm(transcript, summary)
-        
+
         # Deduplicate and limit
         unique_tags = self._deduplicate_tags(ai_tags)
-        limited_tags = unique_tags[:settings.max_tags_per_session]
-        
-        logger.info(f"Extracted {len(limited_tags)} tags for session {session.id} (limit: {settings.max_tags_per_session})")
+        limited_tags = unique_tags[: settings.max_tags_per_session]
+
+        logger.info(
+            f"Extracted {len(limited_tags)} tags for session {session.id} (limit: {settings.max_tags_per_session})"
+        )
         return limited_tags
-    
-    def _generate_tags_with_llm(self, transcript: str, summary: str) -> List[Dict[str, Any]]:
+
+    def _generate_tags_with_llm(
+        self, transcript: str, summary: str
+    ) -> list[dict[str, Any]]:
         """Generate tags using LLM."""
         try:
-            from .llm import LlmService, LlmError, LlmTask
-            
+            from .llm import LlmService, LlmTask
+
             service = LlmService()
             if not service.is_enabled():
                 logger.info("LLM provider disabled, skipping AI tag generation")
                 return []
-            
+
             # Get max tags from settings
             max_llm_tags = settings.max_tags_per_session
-            
+
             prompt = TAGGING_PROMPT.format(
-                transcript=transcript, 
-                summary=summary,
-                max_tags=max_llm_tags
+                transcript=transcript, summary=summary, max_tags=max_llm_tags
             )
-            
+
             response = service.generate_with_provider(prompt, LlmTask.TAGGING)
-            
+
             # Debug: Log the raw response
             logger.info(f"LLM raw response (first 500 chars): {response[:500]}")
-            
+
             # Parse JSON response
             # Clean up response to extract just the JSON array
             response = response.strip()
-            
+
             # Handle markdown code blocks
             if response.startswith("```"):
                 response = response.split("```")[1]
                 if response.startswith("json"):
                     response = response[4:]
                 response = response.strip()
-            
+
             # Handle text before JSON (e.g., "Here are the tags:\n\n[...]")
             # Find the first '[' and extract from there
-            json_start = response.find('[')
+            json_start = response.find("[")
             if json_start > 0:
                 response = response[json_start:]
-            
+
             # Find the last ']' to handle any text after JSON
-            json_end = response.rfind(']')
+            json_end = response.rfind("]")
             if json_end >= 0:
-                response = response[:json_end + 1]
-            
+                response = response[: json_end + 1]
+
             response = response.strip()
-            
+
             if not response:
                 logger.warning("LLM returned empty response for tags")
                 return []
-            
+
             tags = json.loads(response)
-            
+
             # Validate structure
             if not isinstance(tags, list):
                 logger.error(f"LLM returned non-list response: {response}")
                 return []
-            
+
             # Filter and validate each tag
             valid_tags = []
             for tag in tags:
@@ -165,28 +168,24 @@ class TaggingService:
                     tag["confidence"] = tag.get("confidence", 0.8)
                     if tag["confidence"] >= 0.7:
                         valid_tags.append(tag)
-            
+
             return valid_tags[:max_llm_tags]
-            
+
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse LLM tag response: {e}")
             return []
         except Exception as e:
             logger.error(f"Error generating tags with LLM: {e}")
             return []
-    
-    def _generate_context_tags(self, session: SessionModel) -> List[Dict[str, Any]]:
+
+    def _generate_context_tags(self, session: SessionModel) -> list[dict[str, Any]]:
         """Generate automatic context-based tags."""
         context_tags = []
-        
+
         # Day of week
         day = session.created_at.strftime("%A").lower()
-        context_tags.append({
-            "name": day,
-            "category": "context",
-            "confidence": 1.0
-        })
-        
+        context_tags.append({"name": day, "category": "context", "confidence": 1.0})
+
         # Time of day
         hour = session.created_at.hour
         if hour < 12:
@@ -195,13 +194,11 @@ class TaggingService:
             time_tag = "afternoon"
         else:
             time_tag = "evening"
-        
-        context_tags.append({
-            "name": time_tag,
-            "category": "context",
-            "confidence": 1.0
-        })
-        
+
+        context_tags.append(
+            {"name": time_tag, "category": "context", "confidence": 1.0}
+        )
+
         # Duration-based (based on word count)
         if session.transcriptions and session.transcriptions[0].text:
             word_count = len(session.transcriptions[0].text.split())
@@ -211,16 +208,14 @@ class TaggingService:
                 duration_tag = "long-session"
             else:
                 duration_tag = "standard"
-            
-            context_tags.append({
-                "name": duration_tag,
-                "category": "context",
-                "confidence": 1.0
-            })
-        
+
+            context_tags.append(
+                {"name": duration_tag, "category": "context", "confidence": 1.0}
+            )
+
         return context_tags
-    
-    def _deduplicate_tags(self, tags: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+
+    def _deduplicate_tags(self, tags: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Remove duplicate tags, keeping highest confidence."""
         seen = {}
         for tag in tags:
@@ -228,11 +223,13 @@ class TaggingService:
             if name not in seen or tag["confidence"] > seen[name]["confidence"]:
                 seen[name] = tag
         return list(seen.values())
-    
-    def save_tags(self, session_id: int, tags: List[Dict[str, Any]], db: Session) -> None:
+
+    def save_tags(
+        self, session_id: int, tags: list[dict[str, Any]], db: Session
+    ) -> None:
         """
         Save extracted tags to database.
-        
+
         Args:
             session_id: Session ID to tag
             tags: List of tag dicts with name, category, confidence
@@ -245,31 +242,34 @@ class TaggingService:
                 tag = Tag(
                     name=tag_data["name"],
                     category=tag_data.get("category", "custom"),
-                    color=TAG_COLORS.get(tag_data.get("category", "custom"), TAG_COLORS["custom"]),
-                    auto_generated=True
+                    color=TAG_COLORS.get(
+                        tag_data.get("category", "custom"), TAG_COLORS["custom"]
+                    ),
+                    auto_generated=True,
                 )
                 db.add(tag)
                 db.flush()
-            
+
             # Check if already associated
-            existing = db.query(SessionTag).filter_by(
-                session_id=session_id,
-                tag_id=tag.id
-            ).first()
-            
+            existing = (
+                db.query(SessionTag)
+                .filter_by(session_id=session_id, tag_id=tag.id)
+                .first()
+            )
+
             if not existing:
                 # Create association
                 session_tag = SessionTag(
                     session_id=session_id,
                     tag_id=tag.id,
                     confidence=tag_data.get("confidence", 1.0),
-                    auto_generated=True
+                    auto_generated=True,
                 )
                 db.add(session_tag)
-        
+
         db.commit()
         logger.info(f"Saved {len(tags)} tags for session {session_id}")
-    
+
     def assign_color(self, category: str) -> str:
         """Get color for a tag category."""
         return TAG_COLORS.get(category, TAG_COLORS["custom"])

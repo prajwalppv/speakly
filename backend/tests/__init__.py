@@ -2,8 +2,8 @@
 Backend test suite for Speakly.
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Ensure the project root (containing the `backend` package) is on sys.path
 # Add the backend directory (containing the `app` package) to sys.path

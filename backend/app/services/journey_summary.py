@@ -3,8 +3,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from ..config import settings
-from ..models import ReportCadence, ReportStatus
 from .journey_builder import JourneyBuildResult, JourneyMetrics
 
 try:  # pragma: no cover - optional LLM dependency
@@ -35,7 +33,9 @@ class JourneySummaryGenerator:
             try:
                 return self._llm.generate_summary(self._compose_prompt(build_result))
             except LlmError:
-                logger.warning("LLM summary generation failed; using fallback narrative")
+                logger.warning(
+                    "LLM summary generation failed; using fallback narrative"
+                )
             except Exception:
                 logger.exception("Unexpected error during LLM summary generation")
 
@@ -48,13 +48,19 @@ class JourneySummaryGenerator:
             f"Time range: {metrics.period_start:%Y-%m-%d} to {metrics.period_end:%Y-%m-%d} ({metrics.timezone}).",
             f"Sessions: {metrics.session_count} total; {metrics.completed_sessions} completed; total {metrics.total_audio_minutes:.1f} minutes.",
             f"Tasks: {metrics.todo_created} captured; {metrics.todo_completed} completed.",
-            "Key themes: " + ", ".join(tag["name"] for tag in metrics.top_tags) if metrics.top_tags else "No tags captured.",
+            (
+                "Key themes: " + ", ".join(tag["name"] for tag in metrics.top_tags)
+                if metrics.top_tags
+                else "No tags captured."
+            ),
             "Detailed context:\n" + build_result.context_text,
             "Focus on trends, notable sessions, and task outcomes. Keep it under 180 words.",
         ]
         return "\n".join(prompt_lines)
 
-    def _fallback_summary(self, metrics: JourneyMetrics, payload: dict[str, Any]) -> str:
+    def _fallback_summary(
+        self, metrics: JourneyMetrics, payload: dict[str, Any]
+    ) -> str:
         parts = [
             f"Recorded {metrics.session_count} session(s) between {metrics.period_start:%b %d} and {metrics.period_end:%b %d} ({metrics.timezone}).",
         ]

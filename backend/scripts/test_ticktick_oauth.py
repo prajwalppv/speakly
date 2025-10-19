@@ -31,7 +31,7 @@ import base64
 import json
 from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlencode, quote
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -71,7 +71,7 @@ async def exchange_code_for_token(
     encoded_client_id = quote(creds.client_id, safe="")
     encoded_client_secret = quote(creds.client_secret, safe="")
     basic_token = base64.b64encode(
-        f"{encoded_client_id}:{encoded_client_secret}".encode("utf-8")
+        f"{encoded_client_id}:{encoded_client_secret}".encode()
     ).decode("utf-8")
 
     headers = {

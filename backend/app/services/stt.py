@@ -8,13 +8,15 @@ from __future__ import annotations
 
 import json
 import logging
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Any
 import shutil
 import subprocess
 import tempfile
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any
+
 import httpx
+
 try:  # pragma: no cover - optional dependency for Groq provider
     from groq import Groq  # type: ignore
 except ImportError:  # pragma: no cover
@@ -54,12 +56,12 @@ class SttProvider(ABC):
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Submit audio file for async transcription with webhook callback.
-        
+
         Args:
             audio_path: Path to audio file
             webhook_url: URL to receive transcription webhook
             metadata: Optional metadata to pass through
-            
+
         Returns:
             Dict with provider response (request_id, transcription_id, etc.)
         """
@@ -71,7 +73,7 @@ class SttProvider(ABC):
 
 class GroqSttProvider(SttProvider):
     """Groq STT provider using Whisper model.
-    
+
     Groq provides synchronous transcription (no webhook support),
     so we'll handle it synchronously and return immediately.
     """
@@ -86,14 +88,16 @@ class GroqSttProvider(SttProvider):
 
     def is_available(self) -> bool:
         return bool(self._api_key)
-    
+
     def _get_client(self) -> Groq:
         """Lazy initialization of Groq client."""
         if self._client is None:
             if not self._api_key:
                 raise SttNotConfiguredError("Groq API key is not configured.")
             if Groq is None:
-                raise SttNotConfiguredError("Groq SDK is not installed. Install the 'groq' package to enable this provider.")
+                raise SttNotConfiguredError(
+                    "Groq SDK is not installed. Install the 'groq' package to enable this provider."
+                )
             self._client = Groq(api_key=self._api_key)
         return self._client
 
@@ -109,13 +113,13 @@ class GroqSttProvider(SttProvider):
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Transcribe audio synchronously using Groq Whisper.
-        
+
         Note: Groq doesn't support async webhooks, so we transcribe immediately
         and return the result. The caller should handle this synchronous response.
         """
         if not self.is_available():
             raise SttNotConfiguredError("Groq API key is not configured.")
-        
+
         if not audio_path.exists():
             raise SttError(f"Audio file not found: {audio_path}")
 
@@ -123,7 +127,7 @@ class GroqSttProvider(SttProvider):
         file_size = audio_path.stat().st_size
         file_size_mb = file_size / (1024 * 1024)
         max_mb = getattr(settings, "groq_max_file_mb", 24.0) or 24.0
-        
+
         if file_size_mb > max_mb:
             logger.info(
                 "Groq STT: audio file is %.2fMB (limit %.2fMB) – attempting chunked transcription",
@@ -132,11 +136,17 @@ class GroqSttProvider(SttProvider):
             )
             return self._transcribe_large_file(audio_path=audio_path, metadata=metadata)
 
-        logger.info(f"Transcribing with Groq Whisper: {audio_path.name} ({file_size_mb:.2f}MB)")
+        logger.info(
+            f"Transcribing with Groq Whisper: {audio_path.name} ({file_size_mb:.2f}MB)"
+        )
         result = self._transcribe_single_file(audio_path=audio_path, metadata=metadata)
         logger.info(
             "Groq transcription completed (single file): %s chars",
-            len(result["transcription_text"]) if result.get("transcription_text") else 0,
+            (
+                len(result["transcription_text"])
+                if result.get("transcription_text")
+                else 0
+            ),
         )
         return result
 
@@ -163,7 +173,9 @@ class GroqSttProvider(SttProvider):
         audio_path: Path,
         metadata: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        chunk_duration = max(int(getattr(settings, "groq_chunk_duration_seconds", 600) or 600), 60)
+        chunk_duration = max(
+            int(getattr(settings, "groq_chunk_duration_seconds", 600) or 600), 60
+        )
         if shutil.which("ffmpeg") is None:
             raise SttError(
                 "Groq STT: ffmpeg is required to split large audio files. "
@@ -187,7 +199,9 @@ class GroqSttProvider(SttProvider):
                 chunk_metadata = dict(metadata or {})
                 chunk_metadata["chunk_index"] = index
                 chunk_metadata["chunk_count"] = len(chunk_paths)
-                groq_result = self._call_groq(audio_path=chunk_path, metadata=chunk_metadata)
+                groq_result = self._call_groq(
+                    audio_path=chunk_path, metadata=chunk_metadata
+                )
 
                 chunk_text = groq_result["text"]
                 combined_text_parts.append(chunk_text)
@@ -259,7 +273,9 @@ class GroqSttProvider(SttProvider):
             logger.error(f"Groq transcription error: {exc}")
             raise SttError(f"Transcription failed: {exc}") from exc
 
-        transcription_text = transcription.text if hasattr(transcription, 'text') else str(transcription)
+        transcription_text = (
+            transcription.text if hasattr(transcription, "text") else str(transcription)
+        )
 
         return {
             "text": transcription_text,
@@ -294,12 +310,13 @@ class GroqSttProvider(SttProvider):
             str(output_pattern),
         ]
 
-        logger.debug("Groq chunking command: %s", " ".join(str(part) for part in command))
+        logger.debug(
+            "Groq chunking command: %s", " ".join(str(part) for part in command)
+        )
 
         process = subprocess.run(
             command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
         )
 
         if process.returncode != 0:
@@ -328,8 +345,12 @@ class ElevenLabsSttProvider(SttProvider):
             getattr(settings, "elevenlabs_base_url", "https://api.elevenlabs.io") or ""
         ).rstrip("/")
         self._webhook_id = getattr(settings, "elevenlabs_webhook_id", None)
-        self._diarization_enabled = getattr(settings, "elevenlabs_diarization_enabled", True)
-        self._diarization_threshold = getattr(settings, "elevenlabs_diarization_threshold", None)
+        self._diarization_enabled = getattr(
+            settings, "elevenlabs_diarization_enabled", True
+        )
+        self._diarization_threshold = getattr(
+            settings, "elevenlabs_diarization_threshold", None
+        )
 
     def is_available(self) -> bool:
         return bool(self._api_key)
@@ -375,11 +396,19 @@ class ElevenLabsSttProvider(SttProvider):
             payload["webhook_metadata"] = encoded_metadata
 
         try:
-            with httpx.Client(base_url=self._base_url, headers=headers, timeout=30.0) as client:
+            with httpx.Client(
+                base_url=self._base_url, headers=headers, timeout=30.0
+            ) as client:
                 with audio_path.open("rb") as file_obj:
                     response = client.post(
                         "/v1/speech-to-text",
-                        files={"file": (audio_path.name, file_obj, "application/octet-stream")},
+                        files={
+                            "file": (
+                                audio_path.name,
+                                file_obj,
+                                "application/octet-stream",
+                            )
+                        },
                         data=payload,
                     )
         except (httpx.ReadError, httpx.ConnectError, httpx.TimeoutException) as exc:
@@ -389,8 +418,12 @@ class ElevenLabsSttProvider(SttProvider):
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
-            logger.error(f"ElevenLabs API error: {response.status_code} - {response.text[:500]}")
-            raise SttError(f"API error {response.status_code}: {response.text[:200]}") from exc
+            logger.error(
+                f"ElevenLabs API error: {response.status_code} - {response.text[:500]}"
+            )
+            raise SttError(
+                f"API error {response.status_code}: {response.text[:200]}"
+            ) from exc
 
         try:
             data = response.json()
@@ -399,7 +432,7 @@ class ElevenLabsSttProvider(SttProvider):
             raise SttError(f"Invalid JSON response: {exc}") from exc
 
         logger.debug(f"ElevenLabs submission successful: {data}")
-        
+
         return {
             "provider": "elevenlabs",
             "request_id": data.get("request_id"),
@@ -429,10 +462,10 @@ class MockSttProvider(SttProvider):
     ) -> dict[str, Any]:
         """Return mock response for testing."""
         import uuid
-        
+
         mock_id = str(uuid.uuid4())[:16]
         logger.info(f"Mock STT: returning mock response with ID {mock_id}")
-        
+
         return {
             "provider": "mock",
             "message": "[MOCK] Request accepted. Transcription will be sent to webhook.",
@@ -454,7 +487,9 @@ class SttService:
     """High-level STT orchestration that delegates to the selected provider."""
 
     def __init__(self, provider_name: str | None = None) -> None:
-        raw_requested = provider_name or getattr(settings, "stt_provider", "auto") or "auto"
+        raw_requested = (
+            provider_name or getattr(settings, "stt_provider", "auto") or "auto"
+        )
         requested = str(raw_requested).strip().lower() or "auto"
 
         # Developer mode always uses mock
@@ -462,7 +497,9 @@ class SttService:
             requested = "mock"
 
         self.requested_provider = requested
-        self._providers = [provider_cls(settings) for provider_cls in STT_PROVIDER_REGISTRY]
+        self._providers = [
+            provider_cls(settings) for provider_cls in STT_PROVIDER_REGISTRY
+        ]
         self._available_providers = [p for p in self._providers if p.is_available()]
         self._provider = self._select_provider(requested)
 

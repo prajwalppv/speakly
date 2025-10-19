@@ -1,13 +1,22 @@
 from __future__ import annotations
 
-from datetime import datetime
 import enum
+from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy import Enum as SqlEnum
-from sqlalchemy import UniqueConstraint
-from sqlalchemy.sql import expression
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import expression
 
 from .database import Base
 
@@ -28,25 +37,37 @@ class User(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=True)  # Display name from Clerk
     email = Column(String, nullable=True, unique=True, index=True)  # Email from Clerk
-    clerk_user_id = Column(String, nullable=True, unique=True, index=True)  # Clerk's user ID
+    clerk_user_id = Column(
+        String, nullable=True, unique=True, index=True
+    )  # Clerk's user ID
     auto_approve_sessions = Column(
         Boolean,
         nullable=False,
         server_default=expression.false(),
         default=False,
     )
-    
+
     # Legacy field for backwards compatibility (kept for migration)
     # Will be removed after all users migrated to Clerk
 
-    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
+    sessions = relationship(
+        "Session", back_populates="user", cascade="all, delete-orphan"
+    )
     ticktick_token = relationship(
-        "TickTickToken", back_populates="user", uselist=False, cascade="all, delete-orphan"
+        "TickTickToken",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
     report_preferences = relationship(
-        "ReportPreference", back_populates="user", cascade="all, delete-orphan", uselist=True
+        "ReportPreference",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=True,
     )
-    reports = relationship("Report", back_populates="user", cascade="all, delete-orphan")
+    reports = relationship(
+        "Report", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Session(Base, TimestampMixin):
@@ -55,7 +76,9 @@ class Session(Base, TimestampMixin):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     description = Column(String, nullable=True)
-    audio_path = Column(String, nullable=True)  # Temporary storage, deleted after transcription
+    audio_path = Column(
+        String, nullable=True
+    )  # Temporary storage, deleted after transcription
     status = Column(String, nullable=False, default="pending")
     last_error = Column(Text, nullable=True)
     last_transcribed_at = Column(DateTime, nullable=True)
@@ -140,14 +163,19 @@ class Transcription(Base, TimestampMixin):
 
 class TranscriptionEdit(Base, TimestampMixin):
     """Track edit history for transcriptions."""
+
     __tablename__ = "transcription_edits"
 
     id = Column(Integer, primary_key=True, index=True)
-    transcription_id = Column(Integer, ForeignKey("transcriptions.id"), nullable=False, index=True)
+    transcription_id = Column(
+        Integer, ForeignKey("transcriptions.id"), nullable=False, index=True
+    )
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     previous_text = Column(Text, nullable=False)  # Text before edit
     new_text = Column(Text, nullable=False)  # Text after edit
-    edit_type = Column(String, nullable=False, default="manual")  # manual, ai_correction, etc.
+    edit_type = Column(
+        String, nullable=False, default="manual"
+    )  # manual, ai_correction, etc.
     notes = Column(Text, nullable=True)  # Optional notes about the edit
 
     transcription = relationship("Transcription", back_populates="edits")
@@ -176,7 +204,9 @@ class SpeakerSegment(Base, TimestampMixin):
         Integer, ForeignKey("transcriptions.id"), nullable=False, index=True
     )
     speaker_label = Column(String, nullable=True)
-    speaker_profile_id = Column(Integer, ForeignKey("speaker_profiles.id"), nullable=True)
+    speaker_profile_id = Column(
+        Integer, ForeignKey("speaker_profiles.id"), nullable=True
+    )
     start_ms = Column(Integer, nullable=False)
     end_ms = Column(Integer, nullable=False)
     confidence = Column(Float, nullable=True)
@@ -237,12 +267,14 @@ class Todo(Base, TimestampMixin):
     source_start_ms = Column(Integer, nullable=True)
     source_end_ms = Column(Integer, nullable=True)
     source_excerpt = Column(Text, nullable=True)
-    
+
     # TickTick sync tracking
     ticktick_task_id = Column(String, nullable=True, unique=True)
     ticktick_project_id = Column(String, nullable=True)
     ticktick_synced_at = Column(DateTime, nullable=True)
-    ticktick_sync_status = Column(String, default="pending", nullable=False)  # pending, synced, error
+    ticktick_sync_status = Column(
+        String, default="pending", nullable=False
+    )  # pending, synced, error
     ticktick_sync_error = Column(Text, nullable=True)
 
     session = relationship(
@@ -259,6 +291,7 @@ class Todo(Base, TimestampMixin):
 
 class TickTickToken(Base, TimestampMixin):
     """Stores TickTick OAuth tokens for users."""
+
     __tablename__ = "ticktick_tokens"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -274,37 +307,54 @@ class TickTickToken(Base, TimestampMixin):
 
 class Tag(Base, TimestampMixin):
     """Tag model for categorizing sessions."""
-    
+
     __tablename__ = "tags"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True, nullable=False)  # e.g., "meeting", "urgent"
-    category = Column(String, nullable=False)  # "type", "topic", "person", "priority", "context"
+    name = Column(
+        String, unique=True, index=True, nullable=False
+    )  # e.g., "meeting", "urgent"
+    category = Column(
+        String, nullable=False
+    )  # "type", "topic", "person", "priority", "context"
     color = Column(String, nullable=False)  # Hex color for UI display
     auto_generated = Column(Boolean, default=True)  # True if created by AI
-    
+
     # Relationships
-    session_tags = relationship("SessionTag", back_populates="tag", cascade="all, delete-orphan")
-    
+    session_tags = relationship(
+        "SessionTag", back_populates="tag", cascade="all, delete-orphan"
+    )
+
     def __repr__(self) -> str:
         return f"<Tag(id={self.id}, name='{self.name}', category='{self.category}')>"
 
 
 class SessionTag(Base, TimestampMixin):
     """Association table for many-to-many relationship between sessions and tags."""
-    
+
     __tablename__ = "session_tags"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, index=True)
-    tag_id = Column(Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False, index=True)
-    confidence = Column(Float, default=1.0)  # 0.0-1.0 confidence score for AI-generated tags
-    auto_generated = Column(Boolean, default=True)  # True if added by AI, False if manual
-    
+    session_id = Column(
+        Integer,
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    tag_id = Column(
+        Integer, ForeignKey("tags.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    confidence = Column(
+        Float, default=1.0
+    )  # 0.0-1.0 confidence score for AI-generated tags
+    auto_generated = Column(
+        Boolean, default=True
+    )  # True if added by AI, False if manual
+
     # Relationships
     session = relationship("Session", back_populates="session_tags")
     tag = relationship("Tag", back_populates="session_tags")
-    
+
     def __repr__(self) -> str:
         return f"<SessionTag(session_id={self.session_id}, tag_id={self.tag_id}, confidence={self.confidence})>"
 
@@ -329,20 +379,33 @@ class ReportPreference(Base, TimestampMixin):
     """User-level configuration for Journeys cadence and delivery."""
 
     __tablename__ = "report_preferences"
-    __table_args__ = (UniqueConstraint("user_id", name="uq_report_preferences_user_id"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_report_preferences_user_id"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    cadence = Column(String, nullable=False, default=ReportCadence.WEEKLY.value, server_default=ReportCadence.WEEKLY.value)
+    cadence = Column(
+        String,
+        nullable=False,
+        default=ReportCadence.WEEKLY.value,
+        server_default=ReportCadence.WEEKLY.value,
+    )
     timezone = Column(String, nullable=False, default="UTC", server_default="UTC")
     delivery_channels = Column(JSON, nullable=True, default=list)
-    is_active = Column(Boolean, nullable=False, default=True, server_default=expression.true())
-    email_enabled = Column(Boolean, nullable=False, default=True, server_default=expression.true())
+    is_active = Column(
+        Boolean, nullable=False, default=True, server_default=expression.true()
+    )
+    email_enabled = Column(
+        Boolean, nullable=False, default=True, server_default=expression.true()
+    )
     last_generated_at = Column(DateTime, nullable=True)
     next_scheduled_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="report_preferences")
-    reports = relationship("Report", back_populates="preference", cascade="all, delete-orphan")
+    reports = relationship(
+        "Report", back_populates="preference", cascade="all, delete-orphan"
+    )
 
 
 class Report(Base, TimestampMixin):
@@ -352,11 +415,23 @@ class Report(Base, TimestampMixin):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    preference_id = Column(Integer, ForeignKey("report_preferences.id"), nullable=True, index=True)
-    cadence = Column(String, nullable=False, default=ReportCadence.WEEKLY.value, server_default=ReportCadence.WEEKLY.value)
+    preference_id = Column(
+        Integer, ForeignKey("report_preferences.id"), nullable=True, index=True
+    )
+    cadence = Column(
+        String,
+        nullable=False,
+        default=ReportCadence.WEEKLY.value,
+        server_default=ReportCadence.WEEKLY.value,
+    )
     period_start = Column(DateTime, nullable=False)
     period_end = Column(DateTime, nullable=False)
-    status = Column(String, nullable=False, default=ReportStatus.PENDING.value, server_default=ReportStatus.PENDING.value)
+    status = Column(
+        String,
+        nullable=False,
+        default=ReportStatus.PENDING.value,
+        server_default=ReportStatus.PENDING.value,
+    )
     summary = Column(Text, nullable=True)
     payload = Column(JSON, nullable=True)
     metadata_payload = Column(JSON, nullable=True)

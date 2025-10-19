@@ -102,10 +102,10 @@ class Integration(ABC):
     @property
     @abstractmethod
     def name(self) -> str: pass
-    
+
     @abstractmethod
     def is_enabled(self) -> bool: pass
-    
+
     @abstractmethod
     def is_connected(self, user_id: int, db: Session) -> bool: pass
 ```
@@ -117,7 +117,7 @@ class TaskSyncIntegration(Integration, ABC):
     async def sync_task(
         self, task_data: T, user_id: int, db: Session
     ) -> dict: pass
-    
+
     @abstractmethod
     async def get_projects(
         self, user_id: int, db: Session
@@ -158,18 +158,18 @@ class NotionIntegration(TaskSyncIntegration[Todo]):
     @property
     def name(self) -> str:
         return "notion"
-    
+
     @property
     def integration_type(self) -> IntegrationType:
         return IntegrationType.TASK_SYNC
-    
+
     def is_enabled(self) -> bool:
         return settings.notion_enabled
-    
+
     async def sync_task(self, todo: Todo, user_id: int, db: Session):
         # Your Notion API logic here
         pass
-    
+
     async def get_projects(self, user_id: int, db: Session):
         # Get Notion databases
         pass

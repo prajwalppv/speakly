@@ -1,16 +1,21 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Copy, Download, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ExportButtonsProps {
   content: string;
   filename: string;
-  type: 'text' | 'markdown';
+  type: "text" | "markdown";
   label?: string;
 }
 
-export default function ExportButtons({ content, filename, type, label }: ExportButtonsProps) {
+export default function ExportButtons({
+  content,
+  filename,
+  type,
+  label,
+}: ExportButtonsProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -24,11 +29,11 @@ export default function ExportButtons({ content, filename, type, label }: Export
   };
 
   const handleDownload = () => {
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    link.download = `${filename}.${type === 'markdown' ? 'md' : 'txt'}`;
+    link.download = `${filename}.${type === "markdown" ? "md" : "txt"}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -42,9 +47,9 @@ export default function ExportButtons({ content, filename, type, label }: Export
         onClick={handleCopy}
         className={cn(
           "px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all",
-          copied 
+          copied
             ? "bg-green/20 text-green border border-green/30"
-            : "bg-bone-dim/10 text-bone-dim border border-bone-dim/30 hover:bg-bone-dim/20"
+            : "bg-bone-dim/10 text-bone-dim border border-bone-dim/30 hover:bg-bone-dim/20",
         )}
         title="Copy to clipboard"
         aria-label="Copy to clipboard"
@@ -80,8 +85,8 @@ export default function ExportButtons({ content, filename, type, label }: Export
       <motion.button
         onClick={handleDownload}
         className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all bg-blue/20 text-blue border border-blue/30 hover:bg-blue/30"
-        title={`Download as ${type === 'markdown' ? 'Markdown' : 'Text'}`}
-        aria-label={`Download as ${type === 'markdown' ? 'Markdown' : 'Text'}`}
+        title={`Download as ${type === "markdown" ? "Markdown" : "Text"}`}
+        aria-label={`Download as ${type === "markdown" ? "Markdown" : "Text"}`}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
       >

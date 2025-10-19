@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-import logging
 import json
+import logging
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
 
 from .config import DATA_DIR, settings
-from .database import get_session, init_database
+from .database import init_database
 from .errors import format_http_exception, format_unhandled_exception
 from .logging_config import configure_logging
 from .models import User
@@ -35,7 +36,7 @@ def custom_jsonable_encoder(obj: Any) -> Any:
     """Custom encoder that adds 'Z' to datetime strings for proper UTC indication."""
     if isinstance(obj, datetime):
         # Ensure datetime is serialized with 'Z' suffix for UTC
-        return obj.isoformat() + 'Z'
+        return obj.isoformat() + "Z"
     return jsonable_encoder(obj)
 
 
@@ -47,23 +48,27 @@ def create_app() -> FastAPI:
     class CustomJSONEncoder(json.JSONEncoder):
         def default(self, obj):
             if isinstance(obj, datetime):
-                return obj.isoformat() + 'Z'
+                return obj.isoformat() + "Z"
             return super().default(obj)
 
     app = FastAPI(
-        title="Speakly API", 
+        title="Speakly API",
         version="0.1.0",
-        default_response_class=type('CustomJSONResponse', (JSONResponse,), {
-            'media_type': 'application/json',
-            'render': lambda self, content: json.dumps(
-                jsonable_encoder(content),
-                cls=CustomJSONEncoder,
-                ensure_ascii=False,
-                allow_nan=False,
-                indent=None,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        })
+        default_response_class=type(
+            "CustomJSONResponse",
+            (JSONResponse,),
+            {
+                "media_type": "application/json",
+                "render": lambda self, content: json.dumps(
+                    jsonable_encoder(content),
+                    cls=CustomJSONEncoder,
+                    ensure_ascii=False,
+                    allow_nan=False,
+                    indent=None,
+                    separators=(",", ":"),
+                ).encode("utf-8"),
+            },
+        ),
     )
 
     allow_origins = settings.cors_origin_list
@@ -97,7 +102,9 @@ def register_routes(app: FastAPI) -> None:
 def register_event_handlers(app: FastAPI) -> None:
     @app.on_event("startup")
     def _startup() -> None:
-        logger.info("Starting Speakly API", extra={"extra_data": {"env": settings.environment}})
+        logger.info(
+            "Starting Speakly API", extra={"extra_data": {"env": settings.environment}}
+        )
         init_database()
         ensure_default_user()
         ensure_default_speakers()
