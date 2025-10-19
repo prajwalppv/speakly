@@ -706,8 +706,10 @@ export default function SessionsList({
           const hasTranscript = session.transcriptions[0]?.text;
           const hasSummary = session.summary?.text;
           const isAwaitingReview = session.status === "awaiting_review";
-          const reviewActionInFlight =
-            pendingReviewAction && pendingReviewAction.id === session.id;
+          const reviewActionInFlight = Boolean(
+            pendingReviewAction && pendingReviewAction.id === session.id
+          );
+          const isRegenerating = regeneratingSessionId === session.id;
           const isSelected = selectedSessions.has(session.id);
 
           return (
@@ -872,15 +874,15 @@ export default function SessionsList({
                           </motion.button>
                           <motion.button
                             onClick={() => handleRegenerateSession(session.id)}
-                            disabled={regeneratingSessionId === session.id || reviewActionInFlight}
+                            disabled={isRegenerating || reviewActionInFlight}
                             className={cn(
                               "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-blue/15 text-blue border border-blue/30 transition-all",
-                              regeneratingSessionId === session.id && "opacity-70 cursor-wait"
+                              isRegenerating && "opacity-70 cursor-wait"
                             )}
-                            whileHover={regeneratingSessionId === session.id ? {} : { scale: 1.03 }}
-                            whileTap={regeneratingSessionId === session.id ? {} : { scale: 0.97 }}
+                            whileHover={isRegenerating ? {} : { scale: 1.03 }}
+                            whileTap={isRegenerating ? {} : { scale: 0.97 }}
                           >
-                            {regeneratingSessionId === session.id ? (
+                            {isRegenerating ? (
                               <Loader2 size={16} className="animate-spin" />
                             ) : (
                               <RefreshCw size={16} />
