@@ -13,6 +13,13 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  createTodo as createTodoApi,
+  updateTodo as updateTodoApi,
+  deleteTodo as deleteTodoApi,
+  resyncTodo as resyncTodoApi,
+  UpdateTodoRequest,
+} from "../api";
 
 interface Todo {
   id: number;
@@ -56,18 +63,11 @@ const TaskManager: React.FC<TaskManagerProps> = ({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/todos/sessions/${sessionId}/todos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newTask.title,
-          due_hint: newTask.due_hint || undefined,
-          source_excerpt: newTask.source_excerpt || undefined,
-        }),
+      await createTodoApi(sessionId, {
+        title: newTask.title,
+        due_hint: newTask.due_hint || undefined,
+        source_excerpt: newTask.source_excerpt || undefined,
       });
-
-      if (!response.ok) throw new Error("Failed to create task");
-
       setNewTask({ title: "", due_hint: "", source_excerpt: "" });
       setIsAdding(false);
       onUpdate();
@@ -81,14 +81,21 @@ const TaskManager: React.FC<TaskManagerProps> = ({
   const handleUpdate = async (id: number) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/todos/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editTask),
-      });
+      const payload: UpdateTodoRequest = {};
+      if (typeof editTask.title === "string") {
+        payload.title = editTask.title;
+      }
+      if (typeof editTask.due_hint === "string") {
+        payload.due_hint = editTask.due_hint;
+      }
+      if (typeof editTask.status === "string") {
+        payload.status = editTask.status;
+      }
+      if (typeof editTask.source_excerpt === "string") {
+        payload.source_excerpt = editTask.source_excerpt;
+      }
 
-      if (!response.ok) throw new Error("Failed to update task");
-
+      await updateTodoApi(id, payload);
       setEditingId(null);
       setEditTask({});
       onUpdate();
@@ -104,12 +111,7 @@ const TaskManager: React.FC<TaskManagerProps> = ({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/todos/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) throw new Error("Failed to delete task");
-
+      await deleteTodoApi(id);
       onUpdate();
     } catch (error) {
       alert("Failed to delete task. Please try again.");
@@ -121,12 +123,7 @@ const TaskManager: React.FC<TaskManagerProps> = ({
   const handleResync = async (id: number) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/todos/${id}/resync`, {
-        method: "POST",
-      });
-
-      if (!response.ok) throw new Error("Failed to resync task");
-
+      await resyncTodoApi(id);
       alert("Task queued for re-sync");
       onUpdate();
     } catch (error) {

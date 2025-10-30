@@ -181,7 +181,7 @@ class TaskSyncService:
         for update in task_updates:
             try:
                 # Process through each connected integration
-                for integration in self._integrations.values():
+                for integration in self._integrations:
                     if not integration.is_connected(user_id, db):
                         continue
 
