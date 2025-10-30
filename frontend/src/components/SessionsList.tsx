@@ -810,6 +810,80 @@ export default function SessionsList({
           const isRegenerating = regeneratingSessionId === session.id;
           const isSelected = selectedSessions.has(session.id);
 
+          const renderReviewActionButtons = (
+            placement: "top" | "bottom" = "top",
+          ) => {
+            if (!isAwaitingReview) return null;
+
+            return (
+              <div
+                className={cn(
+                  "flex flex-wrap items-center gap-3",
+                  placement === "bottom" &&
+                    "justify-end pt-4 mt-2 border-t border-amber-400/30",
+                )}
+              >
+                <motion.button
+                  onClick={() => handleApproveSession(session.id)}
+                  disabled={reviewActionInFlight}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-green/20 text-green border border-green/30 transition-all",
+                    reviewActionInFlight &&
+                      pendingReviewAction?.type === "approve" &&
+                      "opacity-70 cursor-wait",
+                  )}
+                  whileHover={!reviewActionInFlight ? { scale: 1.03 } : {}}
+                  whileTap={!reviewActionInFlight ? { scale: 0.97 } : {}}
+                >
+                  {reviewActionInFlight &&
+                  pendingReviewAction?.type === "approve" ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <ShieldCheck size={16} />
+                  )}
+                  <span>Approve &amp; Save</span>
+                </motion.button>
+                <motion.button
+                  onClick={() => handleRegenerateSession(session.id)}
+                  disabled={isRegenerating || reviewActionInFlight}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-blue/15 text-blue border border-blue/30 transition-all",
+                    isRegenerating && "opacity-70 cursor-wait",
+                  )}
+                  whileHover={isRegenerating ? {} : { scale: 1.03 }}
+                  whileTap={isRegenerating ? {} : { scale: 0.97 }}
+                >
+                  {isRegenerating ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <RefreshCw size={16} />
+                  )}
+                  <span>Regenerate Insights</span>
+                </motion.button>
+                <motion.button
+                  onClick={() => handleRejectSession(session.id)}
+                  disabled={reviewActionInFlight}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-purple-500/10 text-purple-100 border border-purple-400/40 transition-all",
+                    reviewActionInFlight &&
+                      pendingReviewAction?.type === "reject" &&
+                      "opacity-70 cursor-wait",
+                  )}
+                  whileHover={!reviewActionInFlight ? { scale: 1.03 } : {}}
+                  whileTap={!reviewActionInFlight ? { scale: 0.97 } : {}}
+                >
+                  {reviewActionInFlight &&
+                  pendingReviewAction?.type === "reject" ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Ban size={16} />
+                  )}
+                  <span>Discard Recording</span>
+                </motion.button>
+              </div>
+            );
+          };
+
           const renderActions = (variant: "desktop" | "mobile") => {
             const isMobile = variant === "mobile";
             const copyButtonBase = isMobile
@@ -1024,73 +1098,7 @@ export default function SessionsList({
                             </p>
                           </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <motion.button
-                            onClick={() => handleApproveSession(session.id)}
-                            disabled={reviewActionInFlight}
-                            className={cn(
-                              "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-green/20 text-green border border-green/30 transition-all",
-                              reviewActionInFlight &&
-                                pendingReviewAction?.type === "approve" &&
-                                "opacity-70 cursor-wait",
-                            )}
-                            whileHover={
-                              !reviewActionInFlight ? { scale: 1.03 } : {}
-                            }
-                            whileTap={
-                              !reviewActionInFlight ? { scale: 0.97 } : {}
-                            }
-                          >
-                            {reviewActionInFlight &&
-                            pendingReviewAction?.type === "approve" ? (
-                              <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                              <ShieldCheck size={16} />
-                            )}
-                            <span>Approve &amp; Save</span>
-                          </motion.button>
-                          <motion.button
-                            onClick={() => handleRegenerateSession(session.id)}
-                            disabled={isRegenerating || reviewActionInFlight}
-                            className={cn(
-                              "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-blue/15 text-blue border border-blue/30 transition-all",
-                              isRegenerating && "opacity-70 cursor-wait",
-                            )}
-                            whileHover={isRegenerating ? {} : { scale: 1.03 }}
-                            whileTap={isRegenerating ? {} : { scale: 0.97 }}
-                          >
-                            {isRegenerating ? (
-                              <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                              <RefreshCw size={16} />
-                            )}
-                            <span>Regenerate Insights</span>
-                          </motion.button>
-                          <motion.button
-                            onClick={() => handleRejectSession(session.id)}
-                            disabled={reviewActionInFlight}
-                            className={cn(
-                              "px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 bg-purple-500/10 text-purple-100 border border-purple-400/40 transition-all",
-                              reviewActionInFlight &&
-                                pendingReviewAction?.type === "reject" &&
-                                "opacity-70 cursor-wait",
-                            )}
-                            whileHover={
-                              !reviewActionInFlight ? { scale: 1.03 } : {}
-                            }
-                            whileTap={
-                              !reviewActionInFlight ? { scale: 0.97 } : {}
-                            }
-                          >
-                            {reviewActionInFlight &&
-                            pendingReviewAction?.type === "reject" ? (
-                              <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                              <Ban size={16} />
-                            )}
-                            <span>Discard Recording</span>
-                          </motion.button>
-                        </div>
+                        {renderReviewActionButtons()}
                       </div>
                     )}
 
@@ -1188,6 +1196,7 @@ export default function SessionsList({
                         Updated: {new Date(session.updated_at).toLocaleString()}
                       </span>
                     </div>
+                    {renderReviewActionButtons("bottom")}
                   </motion.div>
                 )}
               </AnimatePresence>

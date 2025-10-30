@@ -67,6 +67,11 @@ class Settings(BaseSettings):
         validation_alias="GROQ_CHUNK_DURATION_SECONDS",
         description="Chunk length (seconds) when splitting large audio for Groq STT",
     )
+    groq_min_chunk_duration_seconds: int = Field(
+        default=60,
+        validation_alias="GROQ_MIN_CHUNK_DURATION_SECONDS",
+        description="Minimum chunk length (seconds) when retrying Groq STT uploads",
+    )
     groq_max_file_mb: float = Field(
         default=24.0,
         validation_alias="GROQ_MAX_FILE_MB",

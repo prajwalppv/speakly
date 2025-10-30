@@ -252,15 +252,23 @@ export default function BulkUploader({
   const handleUpload = async () => {
     if (files.length === 0) return;
 
-    setUploading(true);
+    const filesToUpload = [...files];
 
-    // Update all to uploading
+    setUploading(true);
+    setFiles([]);
+    resetFileInput();
+
+    // Mark items currently in-flight as uploading and clear stale errors
     setProgress((prev) =>
-      prev.map((p) => ({ ...p, status: "uploading" as const })),
+      prev.map((p) =>
+        p.status === "pending" || p.status === "uploading"
+          ? { ...p, status: "uploading" as const, error: undefined }
+          : p,
+      ),
     );
 
     try {
-      const response = await uploadAudioBulk(files);
+      const response = await uploadAudioBulk(filesToUpload);
 
       // Update progress with results
       const updatedProgress = response.results.map((result) => ({
@@ -279,11 +287,15 @@ export default function BulkUploader({
       }
     } catch (error) {
       setProgress((prev) =>
-        prev.map((p) => ({
-          ...p,
-          status: "error" as const,
-          error: "Upload failed",
-        })),
+        prev.map((p) =>
+          p.status === "pending" || p.status === "uploading"
+            ? {
+                ...p,
+                status: "error" as const,
+                error: "Upload failed",
+              }
+            : p,
+        ),
       );
     } finally {
       setUploading(false);
