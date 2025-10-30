@@ -173,15 +173,65 @@ class GroqSttProvider(SttProvider):
         audio_path: Path,
         metadata: dict[str, Any] | None,
     ) -> dict[str, Any]:
-        chunk_duration = max(
-            int(getattr(settings, "groq_chunk_duration_seconds", 600) or 600), 60
+        configured_duration = int(
+            getattr(settings, "groq_chunk_duration_seconds", 600) or 600
         )
+        min_chunk_duration = max(
+            int(getattr(settings, "groq_min_chunk_duration_seconds", 60) or 60), 30
+        )
+        chunk_duration = max(configured_duration, min_chunk_duration)
+
         if shutil.which("ffmpeg") is None:
             raise SttError(
                 "Groq STT: ffmpeg is required to split large audio files. "
                 "Install ffmpeg or reduce the file size."
             )
 
+        attempt = 0
+        last_error: SttError | None = None
+
+        while True:
+            attempt += 1
+            try:
+                return self._transcribe_large_file_with_duration(
+                    audio_path=audio_path,
+                    metadata=metadata,
+                    chunk_duration=chunk_duration,
+                )
+            except SttError as exc:
+                message = str(exc).lower()
+                last_error = exc
+
+                if (
+                    "connection error" in message
+                    and chunk_duration > min_chunk_duration
+                ):
+                    next_duration = max(chunk_duration // 2, min_chunk_duration)
+                    if next_duration == chunk_duration:
+                        break
+
+                    logger.warning(
+                        "Groq chunk transcription failed (attempt %s) due to connection error; "
+                        "retrying with %s-second segments (previously %s).",
+                        attempt,
+                        next_duration,
+                        chunk_duration,
+                    )
+                    chunk_duration = next_duration
+                    continue
+
+                raise
+
+        assert last_error is not None  # For type checkers
+        raise last_error
+
+    def _transcribe_large_file_with_duration(
+        self,
+        *,
+        audio_path: Path,
+        metadata: dict[str, Any] | None,
+        chunk_duration: int,
+    ) -> dict[str, Any]:
         with tempfile.TemporaryDirectory(prefix="speakly-groq-chunks-") as tmpdir:
             chunk_dir = Path(tmpdir)
             chunk_paths = self._split_audio_file(
@@ -195,10 +245,19 @@ class GroqSttProvider(SttProvider):
             total_duration = 0.0
             language = "en"
 
+            logger.info(
+                "Groq STT: transcribing %s using %s chunks (duration %ss)",
+                audio_path.name,
+                len(chunk_paths),
+                chunk_duration,
+            )
+
             for index, chunk_path in enumerate(chunk_paths, start=1):
                 chunk_metadata = dict(metadata or {})
                 chunk_metadata["chunk_index"] = index
                 chunk_metadata["chunk_count"] = len(chunk_paths)
+                chunk_metadata["chunk_duration_seconds"] = chunk_duration
+
                 groq_result = self._call_groq(
                     audio_path=chunk_path, metadata=chunk_metadata
                 )
@@ -232,6 +291,7 @@ class GroqSttProvider(SttProvider):
         merged_metadata: dict[str, Any] = {
             "chunk_count": len(chunk_details),
             "chunks": chunk_details,
+            "chunk_duration_seconds": chunk_duration,
         }
         if metadata:
             merged_metadata["original_metadata"] = metadata
