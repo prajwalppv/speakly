@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python311", "postgresql", "uv"]
+nixPkgs = ["python311", "postgresql", "ffmpeg", "uv"]
 
 [phases.build]
 cmds = [
