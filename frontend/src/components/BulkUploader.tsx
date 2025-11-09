@@ -53,8 +53,10 @@ const TERMINAL_SESSION_STATUSES: Array<SessionRecord["status"]> = [
 
 export default function BulkUploader({
   onUploadComplete,
+  className,
 }: {
   onUploadComplete?: () => void;
+  className?: string;
 }) {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -419,7 +421,7 @@ export default function BulkUploader({
   );
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 py-6 space-y-6">
+    <div className={cn("w-full space-y-6", className)}>
       {/* Main Upload Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
