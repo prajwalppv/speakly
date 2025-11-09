@@ -9,16 +9,26 @@ const RESOLVED_BASE_URL =
 // forwards calls to the backend.
 const client = axios.create({ baseURL: RESOLVED_BASE_URL });
 
-// Add request interceptor to include Clerk auth token
-let authToken: string | null = null;
+type TokenProvider = () => Promise<string | null>;
 
-export function setAuthToken(token: string | null) {
-  authToken = token;
+let authTokenProvider: TokenProvider | null = null;
+
+export function setAuthTokenProvider(provider: TokenProvider | null) {
+  authTokenProvider = provider;
 }
 
-client.interceptors.request.use((config) => {
-  if (authToken) {
-    config.headers.Authorization = `Bearer ${authToken}`;
+client.interceptors.request.use(async (config) => {
+  if (authTokenProvider) {
+    try {
+      const token = await authTokenProvider();
+      if (token) {
+        config.headers = config.headers ?? {};
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      // If token retrieval fails, proceed without setting the header so the backend
+      // can respond with 401 and the client can react accordingly.
+    }
   }
   return config;
 });

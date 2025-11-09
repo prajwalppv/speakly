@@ -11,7 +11,7 @@ import SignIn from "./components/SignIn";
 import Logo from "./components/Logo";
 import LoadingSpinner from "./components/LoadingSpinner";
 import { Compass, FolderOpen } from "lucide-react";
-import { fetchSessions, SessionRecord, setAuthToken } from "./api";
+import { fetchSessions, SessionRecord, setAuthTokenProvider } from "./api";
 import { cn } from "@/lib/utils";
 import JourneysView from "./components/JourneysView";
 
@@ -33,16 +33,28 @@ export default function App() {
 
   // Set auth token for API calls (ALL HOOKS MUST BE BEFORE CONDITIONAL RETURNS!)
   useEffect(() => {
+    let isCurrent = true;
     if (isSignedIn) {
-      getToken().then((token) => {
-        if (token) {
-          setAuthToken(token);
-          setTokenReady(true);
-        }
-      });
+      setTokenReady(false);
+      setAuthTokenProvider(() => getToken());
+      getToken()
+        .then(() => {
+          if (isCurrent) {
+            setTokenReady(true);
+          }
+        })
+        .catch(() => {
+          if (isCurrent) {
+            setTokenReady(true); // allow UI to proceed and surface auth errors
+          }
+        });
     } else {
+      setAuthTokenProvider(null);
       setTokenReady(false);
     }
+    return () => {
+      isCurrent = false;
+    };
   }, [isSignedIn, getToken]);
 
   // Load sessions for command palette (only when token is ready)

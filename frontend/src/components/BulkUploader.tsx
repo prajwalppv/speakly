@@ -442,124 +442,170 @@ export default function BulkUploader({
           }}
         />
 
-        <div className="relative z-10">
+        <div className="relative z-10 space-y-6">
           {/* Header */}
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3">
             <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
               <Mic2 size={28} className="text-gold" strokeWidth={2.5} />
             </motion.div>
-            <h2 className="text-2xl font-display font-bold bg-gradient-gold bg-clip-text text-transparent">
-              Upload Audio
-            </h2>
+            <div>
+              <h2 className="text-2xl font-display font-bold bg-gradient-gold bg-clip-text text-transparent">
+                Bring Audio into Speakly
+              </h2>
+              <p className="text-bone-dim text-sm">
+                Choose the path that works best for you—upload existing files or
+                capture something new.
+              </p>
+            </div>
           </div>
-          <p className="text-bone-dim text-sm mb-6">
-            Drop your audio files here or click to browse • Up to 50 files at
-            once
-          </p>
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Upload Zone */}
+            <div className="flex flex-col gap-3">
+              <div>
+                <p className="text-sm font-semibold text-bone uppercase tracking-wide">
+                  Upload files
+                </p>
+                <p className="text-xs text-bone-dim">
+                  Drag & drop up to 50 audio files or browse your computer.
+                </p>
+              </div>
+              <motion.div whileHover={{ scale: 1.01 }} className="flex-1">
+                <input
+                  type="file"
+                  id="bulk-file-input"
+                  ref={fileInputRef}
+                  multiple
+                  accept="audio/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  disabled={uploading}
+                />
+                <label
+                  htmlFor="bulk-file-input"
+                  className={cn(
+                    "flex flex-col items-center justify-center h-full min-h-[260px]",
+                    "border-2 border-dashed border-gold rounded-xl p-8",
+                    "transition-all duration-300 cursor-pointer",
+                    "hover:border-gold-bright hover:bg-gold/5",
+                    uploading && "opacity-50 cursor-not-allowed",
+                  )}
+                >
+                  <AnimatePresence mode="wait">
+                    {files.length === 0 ? (
+                      <motion.div
+                        key="empty"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="flex flex-col items-center gap-4 text-center"
+                      >
+                        <motion.div
+                          animate={{ y: [0, -10, 0] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        >
+                          <Upload
+                            size={48}
+                            className="text-gold"
+                            strokeWidth={1.5}
+                          />
+                        </motion.div>
+                        <div>
+                          <p className="text-lg font-semibold text-bone">
+                            Drop files here or click to browse
+                          </p>
+                          <p className="text-sm text-bone-dim">
+                            MP3, WAV, M4A, and more
+                          </p>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="selected"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="flex flex-col items-center gap-3 text-center"
+                      >
+                        <span className="text-4xl">📎</span>
+                        <span className="text-lg font-medium text-bone">
+                          {files.length} file{files.length > 1 ? "s" : ""}{" "}
+                          selected
+                        </span>
+                        <span className="text-sm text-bone-dim">
+                          Click to change selection
+                        </span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </label>
+              </motion.div>
+            </div>
 
-          {/* Upload Zone */}
-          <motion.div whileHover={{ scale: 1.01 }} className="mb-6">
-            <input
-              type="file"
-              id="bulk-file-input"
-              ref={fileInputRef}
-              multiple
-              accept="audio/*"
-              onChange={handleFileSelect}
-              className="hidden"
-              disabled={uploading}
-            />
-            <label
-              htmlFor="bulk-file-input"
-              className={cn(
-                "flex flex-col items-center justify-center",
-                "border-2 border-dashed border-gold rounded-lg p-12",
-                "transition-all duration-300 cursor-pointer",
-                "hover:border-gold-bright hover:bg-gold/5",
-                uploading && "opacity-50 cursor-not-allowed",
-              )}
-            >
-              <AnimatePresence mode="wait">
-                {files.length === 0 ? (
-                  <motion.div
-                    key="empty"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    className="flex flex-col items-center gap-4"
-                  >
+            {/* In-browser Recorder */}
+            <div className="flex flex-col gap-4 border border-gold/30 rounded-xl p-5 bg-black/40">
+              <div>
+                <p className="text-sm font-semibold text-bone uppercase tracking-wide">
+                  Record something new
+                </p>
+                <p className="text-xs text-bone-dim">
+                  Capture a quick voice note and we will drop it straight into
+                  your upload queue.
+                </p>
+              </div>
+              <motion.button
+                whileHover={{ scale: uploading ? 1 : 1.03 }}
+                whileTap={{ scale: uploading ? 1 : 0.97 }}
+                onClick={() => setShowRecorder((prev) => !prev)}
+                disabled={uploading}
+                className={cn(
+                  "flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all",
+                  showRecorder
+                    ? "bg-red-500/10 border border-red-500/40 text-red-400"
+                    : "bg-gradient-gold text-black shadow-lg shadow-gold/30",
+                  uploading && "opacity-50 cursor-not-allowed",
+                )}
+              >
+                <Mic2 size={18} />
+                {showRecorder ? "Cancel Recording" : "Start Recording"}
+              </motion.button>
+              <div className="flex-1 w-full">
+                <AnimatePresence>
+                  {showRecorder ? (
                     <motion.div
-                      animate={{ y: [0, -10, 0] }}
-                      transition={{ duration: 2, repeat: Infinity }}
+                      key="recorder"
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="h-full"
                     >
-                      <Upload
-                        size={48}
-                        className="text-gold"
-                        strokeWidth={1.5}
+                      <AudioRecorder
+                        onRecordingComplete={handleRecordingComplete}
+                        onCancel={() => setShowRecorder(false)}
                       />
                     </motion.div>
-                    <span className="text-lg font-medium text-bone">
-                      Click to select files or drag & drop
-                    </span>
-                    <span className="text-sm text-bone-dim">
-                      MP3, WAV, M4A, and more (max 50 files)
-                    </span>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="selected"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    className="flex flex-col items-center gap-3"
-                  >
-                    <span className="text-4xl">📎</span>
-                    <span className="text-lg font-medium text-bone">
-                      {files.length} file{files.length > 1 ? "s" : ""} selected
-                    </span>
-                    <span className="text-sm text-bone-dim">
-                      Click to change selection
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </label>
-          </motion.div>
-
-          {/* Optional in-browser recorder */}
-          <div className="space-y-3">
-            <motion.button
-              whileHover={{ scale: uploading ? 1 : 1.03 }}
-              whileTap={{ scale: uploading ? 1 : 0.97 }}
-              onClick={() => setShowRecorder((prev) => !prev)}
-              disabled={uploading}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
-                "border border-gold text-gold hover:bg-gold hover:text-black",
-                uploading &&
-                  "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-gold",
-              )}
-            >
-              <Mic2 size={18} />
-              {showRecorder ? "Hide Recorder" : "Record a Voice Note"}
-            </motion.button>
-            <AnimatePresence>
-              {showRecorder && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                >
-                  <AudioRecorder
-                    onRecordingComplete={handleRecordingComplete}
-                    onCancel={() => setShowRecorder(false)}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  ) : (
+                    <motion.div
+                      key="tips"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="h-full flex flex-col justify-center text-sm text-bone-dim rounded-lg border border-dashed border-bone-dim/30 px-4 py-5"
+                    >
+                      <p className="font-medium text-bone mb-1">
+                        Need inspiration?
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li>Stand-ups and quick updates</li>
+                        <li>Customer calls or brainstorms on the go</li>
+                        <li>Action items you want to capture fast</li>
+                      </ul>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons */}
