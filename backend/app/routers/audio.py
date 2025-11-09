@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import get_current_user
 from ..config import settings
-from ..database import get_session
+from ..database import SessionLocal, get_session
 from ..models import Session as SessionModel
 from ..models import Transcription as TranscriptionModel
 from ..models import User
@@ -22,6 +22,7 @@ from ..schemas import AudioUploadResponse
 from ..services import SttError, SttNotConfiguredError, SttService
 from ..services import get_elevenlabs_client as _legacy_get_elevenlabs_client
 from ..services import get_stt_service, schedule_summary_and_todos
+from ..services.audio_cleanup import delete_session_audio_file
 
 router = APIRouter(prefix="/api", tags=["audio"])
 logger = logging.getLogger(__name__)
@@ -174,6 +175,7 @@ async def upload_audio(
                 "timestamp": datetime.utcnow().isoformat(),
             }
             session_record.processing_stages = processing_stages
+            delete_session_audio_file(session_record)
 
             developer_message = f"Sync transcription via {submission.get('provider')}: {len(transcription_text)} chars"
         else:
@@ -241,8 +243,6 @@ async def _trigger_mock_webhook(session_id: int, transcription_id: int) -> None:
     """Simulate a webhook callback from ElevenLabs in developer mode."""
     await asyncio.sleep(2)  # Simulate processing delay
 
-    from ..database import SessionLocal
-
     MOCK_TRANSCRIPT = "Get estimates for car fixing, compare the estimates, share it, uh, with Ms. Whitney and, um, get the money transferred. Important tasks."
 
     with SessionLocal() as db:
@@ -264,6 +264,8 @@ async def _trigger_mock_webhook(session_id: int, transcription_id: int) -> None:
         session.status = "processing"
         session.last_error = None
         session.last_transcribed_at = datetime.utcnow()
+
+        delete_session_audio_file(session)
 
         db.add(transcription)
         db.add(session)
@@ -516,6 +518,7 @@ async def upload_audio_bulk(
                         "timestamp": datetime.utcnow().isoformat(),
                     }
                     session_record.processing_stages = processing_stages
+                    delete_session_audio_file(session_record)
 
                     # Trigger LLM processing
                     db.commit()
