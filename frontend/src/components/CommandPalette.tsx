@@ -1,13 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Search,
-  Upload,
-  FileText,
-  Settings,
-  Hash,
-  ArrowRight,
-} from "lucide-react";
+import { Search, Upload, FileText, Link2, ArrowRight } from "lucide-react";
 import { SessionRecord } from "../api";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +10,7 @@ interface CommandPaletteProps {
   sessions: SessionRecord[];
   onUpload: () => void;
   onNavigateToSession: (sessionId: number) => void;
-  onOpenSettings: () => void;
+  onOpenIntegrations: () => void;
   onSearch: (query: string) => void;
 }
 
@@ -35,7 +28,7 @@ export default function CommandPalette({
   sessions,
   onUpload,
   onNavigateToSession,
-  onOpenSettings,
+  onOpenIntegrations,
   onSearch,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
@@ -55,14 +48,14 @@ export default function CommandPalette({
       keywords: ["upload", "add", "new", "file", "audio"],
     },
     {
-      id: "settings",
-      label: "Open settings",
-      icon: <Settings size={18} />,
+      id: "integrations",
+      label: "Manage TickTick integration",
+      icon: <Link2 size={18} />,
       action: () => {
-        onOpenSettings();
+        onOpenIntegrations();
         onClose();
       },
-      keywords: ["settings", "config", "preferences"],
+      keywords: ["ticktick", "integration", "connect", "settings"],
     },
   ];
 

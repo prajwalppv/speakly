@@ -7,10 +7,10 @@ services:
     volumes:
       - ./backend:/app/backend
     environment:
-      SPEAKLY_ENVIRONMENT: dev
+      SPEAKLY_ENVIRONMENT: ${SPEAKLY_ENVIRONMENT:-prod}
       SPEAKLY_DATABASE_URL: ${SPEAKLY_DATABASE_URL:-postgresql+psycopg2://speakly:speakly@db:5432/speakly}
       SPEAKLY_AUDIO_DIR: /app/backend/storage/audio
-      SPEAKLY_LOG_LEVEL: INFO
+      SPEAKLY_LOG_LEVEL: ${SPEAKLY_LOG_LEVEL:-INFO}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       ELEVENLABS_BASE_URL: ${ELEVENLABS_BASE_URL:-https://api.elevenlabs.io}
       ELEVENLABS_WEBHOOK_SECRET: ${ELEVENLABS_WEBHOOK_SECRET:-}
@@ -39,6 +39,8 @@ services:
       REPORT_EMAIL_FROM_EMAIL: ${REPORT_EMAIL_FROM_EMAIL:-}
       REPORT_EMAIL_FROM_NAME: ${REPORT_EMAIL_FROM_NAME:-Speakly Journeys}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
+      SPEAKLY_DEVELOPER_VERIFY_CLERK: ${SPEAKLY_DEVELOPER_VERIFY_CLERK:-false}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-https://romantic-weevil-44.clerk.accounts.dev/.well-known/jwks.json}
     ports:
       - "8000:8000"
     depends_on:

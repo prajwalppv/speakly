@@ -14,6 +14,7 @@ from ..models import Session as SessionModel
 from ..models import Transcription as TranscriptionModel
 from ..schemas import ElevenLabsWebhookPayload
 from ..services import persist_speaker_segments, schedule_summary_and_todos
+from ..services.audio_cleanup import delete_session_audio_file
 
 router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
 logger = logging.getLogger(__name__)
@@ -159,26 +160,9 @@ async def elevenlabs_webhook(
 
     # Delete audio file after successful transcription (privacy + storage savings)
     if transcription.status == "completed" and session.audio_path:
-        from pathlib import Path
-
-        try:
-            audio_path = Path(session.audio_path)
-            if audio_path.exists():
-                audio_path.unlink()
-                logger.info(
-                    f"Deleted audio file after transcription: {session.audio_path}",
-                    extra={"extra_data": {"session_id": session.id}},
-                )
-                # Clear the path in database since file is deleted
-                session.audio_path = None
-                db.commit()
-        except Exception as e:
-            logger.warning(
-                f"Failed to delete audio file: {e}",
-                extra={
-                    "extra_data": {"session_id": session.id, "path": session.audio_path}
-                },
-            )
+        if delete_session_audio_file(session):
+            db.add(session)
+            db.commit()
 
     logger.info(
         "Processed ElevenLabs webhook",

@@ -118,6 +118,9 @@ class Settings(BaseSettings):
     developer_mode: bool = Field(
         default=False, validation_alias="SPEAKLY_DEVELOPER_MODE"
     )
+    developer_verify_clerk_tokens: bool = Field(
+        default=False, validation_alias="SPEAKLY_DEVELOPER_VERIFY_CLERK"
+    )
 
     # Journey report email delivery (Brevo)
     report_email_enabled: bool = Field(
@@ -131,9 +134,20 @@ class Settings(BaseSettings):
     )
     brevo_api_key: str | None = Field(default=None, validation_alias="BREVO_API_KEY")
 
-    # Clerk Authentication (backend only needs secret key for JWT verification)
+    # Clerk Authentication (JWT verification)
     clerk_secret_key: str | None = Field(
         default=None, validation_alias="CLERK_SECRET_KEY"
+    )
+    clerk_jwks_url: str | None = Field(
+        default=None,
+        validation_alias="CLERK_JWKS_URL",
+        description="Explicit JWKS endpoint URL for Clerk instance",
+    )
+    clerk_jwks_cache_ttl_seconds: int = Field(
+        default=300,
+        validation_alias="CLERK_JWKS_CACHE_TTL_SECONDS",
+        description="JWKS cache lifetime in seconds (default 5 minutes)",
+        ge=60,
     )
 
     # TickTick Integration

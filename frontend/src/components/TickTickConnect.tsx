@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  CheckCircle2,
-  Circle,
-  Link2,
-  Calendar,
-  Shield,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
+import { Link2, Calendar, Shield, Loader2, AlertCircle, X } from "lucide-react";
 import {
   getTickTickStatus,
   connectTickTick,
@@ -17,11 +9,16 @@ import {
 } from "../api";
 import { cn } from "@/lib/utils";
 
-export default function TickTickConnect() {
+interface TickTickConnectProps {
+  className?: string;
+}
+
+export default function TickTickConnect({ className }: TickTickConnectProps) {
   const [status, setStatus] = useState<TickTickStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
   const loadStatus = async () => {
     try {
@@ -57,6 +54,8 @@ export default function TickTickConnect() {
   }, []);
 
   const handleConnect = () => {
+    if (connecting || status?.connected) return;
+    setConnecting(true);
     connectTickTick(); // This will redirect
   };
 
@@ -77,168 +76,211 @@ export default function TickTickConnect() {
     }
   };
 
-  if (loading) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="bg-gradient-to-br from-black-soft to-black border-2 border-gold/30 rounded-xl p-6"
-      >
-        <div className="flex items-center justify-center gap-3 text-bone py-8">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          >
-            <Loader2 size={24} />
-          </motion.div>
-          <span>Loading TickTick status...</span>
-        </div>
-      </motion.div>
-    );
-  }
+  const featurePills = [
+    "Auto-sync TODOs",
+    "Keep tasks in one place",
+    "Never miss action items",
+  ];
+
+  const isConnected = Boolean(status?.connected);
+  const featureSummary = featurePills.join(" • ");
+  const connectedDetails = status?.connected
+    ? ([
+        status.user_id && { label: "User", value: status.user_id },
+        status.expires_at && {
+          label: "Expires",
+          value: new Date(status.expires_at).toLocaleDateString(),
+        },
+        status.scope && { label: "Scope", value: status.scope },
+      ].filter(Boolean) as Array<{ label: string; value: string }>)
+    : [];
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-gradient-to-br from-black-soft to-black border-2 border-gold/30 rounded-xl p-6 space-y-6"
+      className={cn(
+        "bg-gradient-to-br from-black-soft to-black border-2 border-gold/30 rounded-xl p-4 space-y-4",
+        className,
+      )}
     >
-      <div className="space-y-2">
-        <h3 className="text-xl font-display font-bold text-bone flex items-center gap-2">
-          <span>🎯</span> TickTick Integration
-        </h3>
-        <p className="text-sm text-bone-dim">
-          Automatically sync extracted TODOs to your TickTick account
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-display font-semibold text-bone">
+            Integrations
+          </h3>
+          <p className="text-xs text-bone-dim">
+            Connect Speakly to your task managers.
+          </p>
+        </div>
+        {loading && (
+          <div className="flex items-center gap-2 text-xs text-bone-dim">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            >
+              <Loader2 size={14} />
+            </motion.div>
+            Checking...
+          </div>
+        )}
       </div>
 
       {error && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
-          className="flex items-center gap-2 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-500 text-sm"
+          className="flex items-center gap-2 p-3 bg-red-500/15 border border-red-500/30 rounded-lg text-red-400 text-xs"
         >
-          <AlertCircle size={18} />
+          <AlertCircle size={16} />
           {error}
         </motion.div>
       )}
 
-      {status?.connected ? (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="space-y-6"
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-green/20 border-2 border-green rounded-full text-green font-medium">
-            <CheckCircle2 size={20} />
-            <span>Connected</span>
-          </div>
-
-          <div className="space-y-3 bg-black/30 border border-bone-dim/20 rounded-lg p-4">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-bone-dim flex items-center gap-2">
-                <Link2 size={16} />
-                User ID:
-              </span>
-              <span className="text-bone font-medium">{status.user_id}</span>
+      <div className="space-y-3">
+        <div className="group rounded-xl border border-gold/20 bg-black/40 p-4 space-y-2 transition-colors focus-within:border-gold/40">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div
+              className="flex items-center gap-3 min-w-0"
+              title={featureSummary}
+            >
+              <div className="text-2xl leading-none">🎯</div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-semibold text-bone">
+                    TickTick
+                  </span>
+                  <span
+                    className={cn(
+                      "px-2 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1",
+                      isConnected
+                        ? "bg-green/15 text-green border border-green/40"
+                        : "bg-bone-dim/10 text-bone-dim border border-bone-dim/30",
+                    )}
+                    aria-label={isConnected ? "Connected" : "Not connected"}
+                    title={isConnected ? "Connected" : "Not connected"}
+                  >
+                    <span
+                      className={cn(
+                        "inline-block w-2 h-2 rounded-full",
+                        isConnected
+                          ? "bg-green shadow-[0_0_4px_rgba(74,222,128,0.9)]"
+                          : "bg-red-500",
+                      )}
+                    />
+                    <span className="sr-only">
+                      {isConnected ? "Connected" : "Not connected"}
+                    </span>
+                  </span>
+                </div>
+                <p className="text-xs text-bone-dim line-clamp-1">
+                  Sync TODOs into TickTick
+                </p>
+              </div>
             </div>
-            {status.expires_at && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-bone-dim flex items-center gap-2">
-                  <Calendar size={16} />
-                  Token Expires:
-                </span>
-                <span className="text-bone font-medium">
-                  {new Date(status.expires_at).toLocaleDateString()}
-                </span>
-              </div>
-            )}
-            {status.scope && (
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-bone-dim flex items-center gap-2">
-                  <Shield size={16} />
-                  Permissions:
-                </span>
-                <span className="text-bone font-medium">{status.scope}</span>
-              </div>
-            )}
-          </div>
-
-          <motion.button
-            className={cn(
-              "w-full px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2",
-              disconnecting
-                ? "bg-black-soft text-bone-dim cursor-not-allowed"
-                : "border-2 border-red-500/30 text-red-500 hover:bg-red-500/10",
-            )}
-            onClick={handleDisconnect}
-            disabled={disconnecting}
-            whileHover={!disconnecting ? { scale: 1.02 } : {}}
-            whileTap={!disconnecting ? { scale: 0.98 } : {}}
-          >
-            {disconnecting ? (
-              <>
+            <motion.button
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-semibold border transition-all flex items-center gap-1.5 self-start md:self-auto",
+                isConnected
+                  ? "border-red-500/40 text-red-400 hover:bg-red-500/10"
+                  : "border-gold/60 text-bone hover:bg-gold/10",
+              )}
+              onClick={isConnected ? handleDisconnect : handleConnect}
+              disabled={
+                loading ||
+                connecting ||
+                disconnecting ||
+                (isConnected ? disconnecting : connecting)
+              }
+              whileHover={
+                !loading && !(isConnected ? disconnecting : connecting)
+                  ? { scale: 1.01 }
+                  : {}
+              }
+              whileTap={
+                !loading && !(isConnected ? disconnecting : connecting)
+                  ? { scale: 0.99 }
+                  : {}
+              }
+            >
+              {isConnected ? (
+                disconnecting ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                  >
+                    <Loader2 size={14} />
+                  </motion.div>
+                ) : (
+                  <X size={14} />
+                )
+              ) : connecting ? (
                 <motion.div
                   animate={{ rotate: 360 }}
                   transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                 >
-                  <Loader2 size={18} />
+                  <Loader2 size={14} />
                 </motion.div>
-                Disconnecting...
-              </>
-            ) : (
-              <>Disconnect TickTick</>
+              ) : (
+                <Link2 size={14} />
+              )}
+              {isConnected ? "Disconnect" : "Connect"}
+            </motion.button>
+          </div>
+
+          <div
+            className={cn(
+              "text-xs text-bone-dim transition-all duration-200 ease-out leading-relaxed",
+              "max-h-0 opacity-0 group-hover:max-h-40 group-hover:opacity-80 group-focus-within:max-h-40 group-focus-within:opacity-80",
             )}
-          </motion.button>
-        </motion.div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="space-y-6"
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-bone-dim/10 border-2 border-bone-dim/30 rounded-full text-bone-dim font-medium">
-            <Circle size={20} />
-            <span>Not Connected</span>
-          </div>
-
-          <div className="space-y-3 bg-gold/10 border border-gold/30 rounded-lg p-4">
-            <h4 className="text-sm font-display font-semibold text-gold">
-              Benefits:
-            </h4>
-            <ul className="space-y-2 text-sm text-bone-dim">
-              <li className="flex items-start gap-2">
-                <span className="text-gold mt-0.5">•</span>
-                <span>Auto-sync extracted TODOs to TickTick</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-gold mt-0.5">•</span>
-                <span>Keep tasks organized in one place</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-gold mt-0.5">•</span>
-                <span>Never miss an action item from meetings</span>
-              </li>
-            </ul>
-          </div>
-
-          <motion.button
-            className="w-full px-4 py-2 bg-gradient-blue text-bone rounded-lg font-medium hover:shadow-lg hover:shadow-blue/50 transition-all flex items-center justify-center gap-2"
-            onClick={handleConnect}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
           >
-            <Link2 size={18} />
-            Connect TickTick
-          </motion.button>
+            {isConnected ? (
+              <div className="grid gap-2 sm:grid-cols-3 text-[11px] text-bone-dim">
+                {connectedDetails.map(({ label, value }) => (
+                  <div
+                    key={label}
+                    className="flex items-center gap-1.5 min-w-0"
+                  >
+                    <span>{label}:</span>
+                    <span
+                      className="text-bone font-semibold truncate"
+                      title={value}
+                    >
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                {featurePills.map((text) => (
+                  <span
+                    key={text}
+                    className="px-2.5 py-0.5 rounded-full border border-bone-dim/30 text-bone-dim"
+                  >
+                    {text}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
 
           {status?.error && (
-            <div className="text-xs text-red-500 text-center p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+            <div
+              className={cn(
+                "text-[11px] text-red-400 text-center p-2 bg-red-500/10 rounded-lg border border-red-500/20 transition-all duration-200",
+                "max-h-0 opacity-0 group-hover:max-h-14 group-hover:opacity-100 group-focus-within:max-h-14 group-focus-within:opacity-100",
+              )}
+            >
               {status.error}
             </div>
           )}
-        </motion.div>
-      )}
+        </div>
+      </div>
     </motion.div>
   );
 }

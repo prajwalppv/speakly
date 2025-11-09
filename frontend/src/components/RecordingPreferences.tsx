@@ -59,8 +59,7 @@ export default function RecordingPreferences() {
             Recording Preferences
           </h3>
           <p className="text-sm text-bone-dim">
-            Decide whether new recordings are stored automatically after
-            processing, or if you want to review and approve them first.
+            Choose whether uploads auto-save or pause for manual review.
           </p>
         </div>
         <motion.button
@@ -98,17 +97,16 @@ export default function RecordingPreferences() {
       )}
 
       {!loading && (
-        <ul className="text-sm text-bone-dim space-y-1 list-disc list-inside">
-          <li>
+        <div className="text-sm text-bone-dim space-y-2">
+          <p>
             {autoApproveEnabled
-              ? "New recordings are finalized automatically after processing."
-              : "New recordings pause in review until you approve or discard them."}
-          </li>
-          <li>
-            You can switch this setting anytime—existing recordings keep their
-            current review status.
-          </li>
-        </ul>
+              ? "Fresh sessions publish automatically after processing."
+              : "New sessions wait in review until you approve or discard them."}
+          </p>
+          <p className="text-xs text-bone-dim">
+            Switch anytime—existing sessions keep their current status.
+          </p>
+        </div>
       )}
     </motion.div>
   );

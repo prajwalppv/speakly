@@ -8,12 +8,19 @@ This module handles:
 - FastAPI dependency for authenticated routes
 """
 
+from __future__ import annotations
+
+import json
 import logging
+from datetime import datetime, timedelta, timezone
+from threading import Lock
+from typing import Any
 
 import httpx
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt.algorithms import RSAAlgorithm
 from sqlalchemy.orm import Session
 
 from .config import settings
@@ -26,46 +33,109 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer()
 
 # Cache for Clerk JWKS (public keys)
-_jwks_cache: dict | None = None
+_jwks_cache: dict[str, Any] | None = None
+_jwks_cache_expiry: datetime | None = None
+_jwks_cache_lock = Lock()
 
 
-async def get_clerk_jwks() -> dict:
+def _extract_cache_ttl(headers: httpx.Headers) -> int | None:
+    """Extract max-age from Cache-Control header if present."""
+    cache_control = headers.get("Cache-Control")
+    if not cache_control:
+        return None
+    for part in cache_control.split(","):
+        part = part.strip()
+        if part.lower().startswith("max-age="):
+            value = part.split("=", 1)[1]
+            try:
+                return max(int(value), 0)
+            except ValueError:
+                return None
+    return None
+
+
+def get_clerk_jwks(force_refresh: bool = False) -> dict[str, Any]:
     """
     Fetch Clerk's JWKS (JSON Web Key Set) for verifying JWT signatures.
 
     Clerk uses RS256 algorithm with rotating keys. We need to fetch the
-    public keys to verify tokens.
-
-    Caches the result to avoid repeated requests.
+    public keys to verify tokens. Results are cached for a short period.
     """
-    global _jwks_cache
+    global _jwks_cache, _jwks_cache_expiry
 
-    if _jwks_cache is not None:
-        return _jwks_cache
+    if settings.developer_mode and not settings.developer_verify_clerk_tokens:
+        logger.debug("Developer mode enabled; skipping JWKS fetch.")
+        return {}
 
-    # In development mode, we skip JWKS verification for easier testing
-    # In production, you should fetch Clerk's JWKS from their well-known endpoint
-    try:
-        # Check if we're in development mode (using test secret key)
-        if settings.clerk_secret_key and settings.clerk_secret_key.startswith(
-            "sk_test_"
+    jwks_url = settings.clerk_jwks_url
+    if not jwks_url:
+        if settings.environment == "prod" or settings.developer_verify_clerk_tokens:
+            logger.error(
+                "CLERK_JWKS_URL not configured. Cannot verify Clerk tokens securely."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service temporarily unavailable",
+            )
+        logger.warning(
+            "CLERK_JWKS_URL not configured; returning empty JWKS (no signature verification)."
+        )
+        return {}
+
+    now = datetime.now(tz=timezone.utc)
+
+    with _jwks_cache_lock:
+        if (
+            not force_refresh
+            and _jwks_cache is not None
+            and _jwks_cache_expiry
+            and _jwks_cache_expiry > now
         ):
-            # Development: skip JWKS verification
-            logger.warning("Development mode: JWT signature verification disabled")
-            _jwks_cache = {}
             return _jwks_cache
 
-        # Production: Fetch Clerk JWKS (not implemented yet)
-        logger.warning(
-            "Production JWKS verification not implemented - using unverified tokens"
+        logger.debug("Fetching Clerk JWKS from %s", jwks_url)
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                response = client.get(jwks_url, headers={"Accept": "application/json"})
+                response.raise_for_status()
+                payload = response.json()
+        except httpx.HTTPError as exc:
+            logger.error("Failed to fetch Clerk JWKS: %s", exc)
+            if _jwks_cache and not force_refresh:
+                logger.warning("Using cached JWKS after fetch failure.")
+                return _jwks_cache
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service temporarily unavailable",
+            ) from exc
+        except Exception as exc:  # noqa: BLE001 - best-effort safety
+            logger.exception("Unexpected error fetching Clerk JWKS")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service temporarily unavailable",
+            ) from exc
+
+        if not isinstance(payload, dict) or "keys" not in payload:
+            logger.error("Clerk JWKS payload missing 'keys' attribute")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service temporarily unavailable",
+            )
+
+        ttl_seconds = _extract_cache_ttl(response.headers)
+        if not ttl_seconds:
+            ttl_seconds = settings.clerk_jwks_cache_ttl_seconds
+
+        _jwks_cache = payload
+        _jwks_cache_expiry = now + timedelta(seconds=ttl_seconds)
+
+        logger.debug(
+            "Cached Clerk JWKS (%d keys) for %d seconds",
+            len(payload.get("keys", [])),
+            ttl_seconds,
         )
-        _jwks_cache = {}
-        return _jwks_cache
-    except Exception as e:
-        logger.error(f"Failed to fetch Clerk JWKS: {e}")
-        # In development, allow tokens without verification
-        _jwks_cache = {}
-        return _jwks_cache
+
+    return _jwks_cache or {}
 
 
 def verify_clerk_token(token: str) -> dict:
@@ -81,30 +151,81 @@ def verify_clerk_token(token: str) -> dict:
     Raises:
         HTTPException: If token is invalid or expired
     """
-    try:
-        # In development mode, we decode without verification
-        # In production, you'd verify against Clerk's JWKS
-        if settings.clerk_secret_key and settings.clerk_secret_key.startswith(
-            "sk_test_"
-        ):
-            # Development: decode without verification
-            payload = jwt.decode(
-                token, options={"verify_signature": False}, algorithms=["RS256"]
-            )
-            logger.debug(f"Decoded JWT token (dev mode): user_id={payload.get('sub')}")
-            return payload
-        else:
-            # Production: verify signature with Clerk's public key
-            # This requires fetching JWKS and matching the key
-            # For now, we'll use the same approach but log a warning
-            logger.warning(
-                "Production mode but using unverified JWT - implement JWKS verification!"
-            )
-            payload = jwt.decode(
-                token, options={"verify_signature": False}, algorithms=["RS256"]
-            )
-            return payload
+    if settings.developer_mode and not settings.developer_verify_clerk_tokens:
+        payload = jwt.decode(
+            token, options={"verify_signature": False}, algorithms=["RS256"]
+        )
+        logger.debug(
+            "Developer mode: decoded Clerk token without signature verification",
+            extra={"extra_data": {"user_id": payload.get("sub")}},
+        )
+        return payload
 
+    try:
+        header = jwt.get_unverified_header(token)
+    except jwt.InvalidTokenError as exc:
+        logger.warning("Invalid JWT header: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    kid = header.get("kid")
+    if not kid:
+        logger.warning("JWT token missing 'kid' header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    def _find_key(jwks: dict[str, Any]) -> dict[str, Any] | None:
+        for entry in jwks.get("keys", []):
+            if entry.get("kid") == kid:
+                return entry
+        return None
+
+    jwks = get_clerk_jwks()
+    if not jwks or not jwks.get("keys"):
+        logger.warning(
+            "JWKS keyset empty. Decoding Clerk token without verification (environment=%s).",
+            settings.environment,
+        )
+        return jwt.decode(
+            token, options={"verify_signature": False}, algorithms=["RS256"]
+        )
+
+    key_data = _find_key(jwks)
+    if key_data is None:
+        jwks = get_clerk_jwks(force_refresh=True)
+        key_data = _find_key(jwks)
+
+    if key_data is None:
+        logger.warning("No matching JWK found for kid=%s", kid)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        public_key = RSAAlgorithm.from_jwk(json.dumps(key_data))
+    except Exception as exc:  # noqa: BLE001 - propagate as auth failure
+        logger.warning("Failed to construct RSA key from Clerk JWKS: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    try:
+        payload = jwt.decode(
+            token,
+            key=public_key,
+            algorithms=["RS256"],
+            options={"verify_aud": False},
+        )
     except jwt.ExpiredSignatureError:
         logger.warning("JWT token expired")
         raise HTTPException(
@@ -112,13 +233,15 @@ def verify_clerk_token(token: str) -> dict:
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.InvalidTokenError as e:
-        logger.warning(f"Invalid JWT token: {e}")
+    except jwt.InvalidTokenError as exc:
+        logger.warning("Invalid JWT token: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from exc
+
+    return payload
 
 
 def _select_email_from_addresses(

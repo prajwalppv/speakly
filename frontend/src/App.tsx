@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth, useUser, UserButton } from "@clerk/clerk-react";
 import { motion } from "framer-motion";
 import BulkUploader from "./components/BulkUploader";
@@ -10,12 +10,12 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import SignIn from "./components/SignIn";
 import Logo from "./components/Logo";
 import LoadingSpinner from "./components/LoadingSpinner";
-import { Compass, FolderOpen, Link2 } from "lucide-react";
-import { fetchSessions, SessionRecord, setAuthToken } from "./api";
+import { Compass, FolderOpen } from "lucide-react";
+import { fetchSessions, SessionRecord, setAuthTokenProvider } from "./api";
 import { cn } from "@/lib/utils";
 import JourneysView from "./components/JourneysView";
 
-type Tab = "upload" | "journeys" | "settings";
+type Tab = "upload" | "journeys";
 
 export default function App() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
@@ -27,19 +27,34 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [targetSessionId, setTargetSessionId] = useState<number | null>(null);
   const [tokenReady, setTokenReady] = useState(false);
+  const [pendingIntegrationScroll, setPendingIntegrationScroll] =
+    useState(false);
+  const integrationSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Set auth token for API calls (ALL HOOKS MUST BE BEFORE CONDITIONAL RETURNS!)
   useEffect(() => {
+    let isCurrent = true;
     if (isSignedIn) {
-      getToken().then((token) => {
-        if (token) {
-          setAuthToken(token);
-          setTokenReady(true);
-        }
-      });
+      setTokenReady(false);
+      setAuthTokenProvider(() => getToken());
+      getToken()
+        .then(() => {
+          if (isCurrent) {
+            setTokenReady(true);
+          }
+        })
+        .catch(() => {
+          if (isCurrent) {
+            setTokenReady(true); // allow UI to proceed and surface auth errors
+          }
+        });
     } else {
+      setAuthTokenProvider(null);
       setTokenReady(false);
     }
+    return () => {
+      isCurrent = false;
+    };
   }, [isSignedIn, getToken]);
 
   // Load sessions for command palette (only when token is ready)
@@ -72,6 +87,20 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isSignedIn]);
 
+  useEffect(() => {
+    if (!pendingIntegrationScroll || activeTab !== "upload") return;
+
+    const scrollTimeout = window.setTimeout(() => {
+      integrationSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      setPendingIntegrationScroll(false);
+    }, 200);
+
+    return () => window.clearTimeout(scrollTimeout);
+  }, [pendingIntegrationScroll, activeTab]);
+
   // Show loading or sign-in AFTER all hooks
   if (!isLoaded) {
     return (
@@ -93,6 +122,11 @@ export default function App() {
       </div>
     );
   }
+
+  const handleOpenIntegrations = () => {
+    setActiveTab("upload");
+    setPendingIntegrationScroll(true);
+  };
 
   return (
     <ErrorBoundary>
@@ -151,21 +185,6 @@ export default function App() {
                     <Compass size={18} />
                     <span>Journeys</span>
                   </motion.button>
-                  <motion.button
-                    onClick={() => setActiveTab("settings")}
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm transition-all",
-                      activeTab === "settings"
-                        ? "bg-gradient-blue text-bone shadow-lg shadow-blue/30"
-                        : "text-bone-dim hover:text-bone hover:bg-black-soft",
-                    )}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    aria-label="Integrations & Settings"
-                  >
-                    <Link2 size={18} />
-                    <span>Integrations</span>
-                  </motion.button>
                 </nav>
 
                 {/* User Button */}
@@ -195,13 +214,23 @@ export default function App() {
         {/* Main Content */}
         <main className="min-h-[calc(100vh-80px)]">
           {activeTab === "upload" && (
-            <>
-              <div className="w-full max-w-7xl mx-auto px-4 pt-6">
-                <RecordingPreferences />
+            <div className="w-full max-w-7xl mx-auto px-4 pt-6 space-y-6">
+              <div className="grid gap-6 xl:grid-cols-[1.7fr_minmax(320px,1fr)] items-stretch">
+                <BulkUploader
+                  className="py-2 h-full"
+                  onUploadComplete={() => setRefreshTrigger((prev) => prev + 1)}
+                />
+                <div className="flex flex-col gap-6 h-full">
+                  <RecordingPreferences />
+                  <div
+                    ref={integrationSectionRef}
+                    id="integrations"
+                    className="flex-1 flex"
+                  >
+                    <TickTickConnect className="flex-1" />
+                  </div>
+                </div>
               </div>
-              <BulkUploader
-                onUploadComplete={() => setRefreshTrigger((prev) => prev + 1)}
-              />
               <SessionsList
                 refreshTrigger={refreshTrigger}
                 searchQuery={searchQuery}
@@ -211,16 +240,7 @@ export default function App() {
                   setTargetSessionId(null);
                 }}
               />
-            </>
-          )}
-          {activeTab === "settings" && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="max-w-4xl mx-auto px-4 py-6"
-            >
-              <TickTickConnect />
-            </motion.div>
+            </div>
           )}
           {activeTab === "journeys" && <JourneysView />}
         </main>
@@ -238,9 +258,7 @@ export default function App() {
             setActiveTab("upload");
             setTargetSessionId(sessionId);
           }}
-          onOpenSettings={() => {
-            setActiveTab("settings");
-          }}
+          onOpenIntegrations={handleOpenIntegrations}
           onSearch={(query) => {
             setActiveTab("upload");
             setSearchQuery(query);
